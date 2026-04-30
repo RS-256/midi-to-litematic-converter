@@ -1,60 +1,68 @@
-import './style.css'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.ts'
+import "./style.css";
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+const app = document.querySelector<HTMLDivElement>("#app");
 
-<div class="ticks"></div>
+if (!app) {
+  throw new Error("#app element was not found");
+}
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+app.innerHTML = `
+  <main class="container">
+    <h1>Noteblock Litematic Generator</h1>
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+    <p class="description">
+      Convert MIDI files into Minecraft note block litematic data.
+    </p>
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+    <section class="card">
+      <label class="file-label" for="midi-file">
+        Select MIDI file
+      </label>
+
+      <input
+        id="midi-file"
+        type="file"
+        accept=".mid,.midi,audio/midi"
+      />
+
+      <div id="file-info" class="file-info">
+        No file selected.
+      </div>
+    </section>
+  </main>
+`;
+
+const fileInput = document.querySelector<HTMLInputElement>("#midi-file");
+const fileInfo = document.querySelector<HTMLDivElement>("#file-info");
+
+if (!fileInput || !fileInfo) {
+  throw new Error("Required elements were not found");
+}
+
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files?.[0];
+
+  if (!file) {
+    fileInfo.textContent = "No file selected.";
+    return;
+  }
+
+  fileInfo.innerHTML = `
+    <strong>Selected file:</strong><br />
+    Name: ${file.name}<br />
+    Size: ${formatBytes(file.size)}<br />
+    Type: ${file.type || "unknown"}
+  `;
+});
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
