@@ -1,8 +1,7 @@
 import { Midi } from "@tonejs/midi";
 import "./style.css";
 
-type ParsedNote = {
-  trackIndex: number;
+type RawNote = {
   name: string;
   midi: number;
   time: number;
@@ -11,7 +10,18 @@ type ParsedNote = {
   velocity: number;
 };
 
-const app = document.querySelector<HTMLDivElement>("#app");
+type TrackData = {
+  trackIndex: number;
+  trackName: string;
+  notes: RawNote[];
+};
+
+const DEFAULT_BASE_MIDI = 66; // F#4. noteBlockPitch 12 の基準音
+
+let loadedTracks: TrackData[] = [];
+const trackBaseMidiMap = new Map<number, number>();
+
+const app = getElement<HTMLDivElement>("#app");
 
 if (!app) {
   throw new Error("#app element was not found");
@@ -49,28 +59,24 @@ app.innerHTML = `
     </section>
 
     <section class="card">
-      <h2>Notes Preview</h2>
-      <pre id="notes-output" class="notes-output">No notes loaded.</pre>
+      <h2>Tracks</h2>
+      <div id="tracks-output" class="tracks-output">
+        No tracks loaded.
+      </div>
     </section>
   </main>
 `;
 
-const fileInput = document.querySelector<HTMLInputElement>("#midi-file");
-const fileInfo = document.querySelector<HTMLDivElement>("#file-info");
-const midiSummary = document.querySelector<HTMLDivElement>("#midi-summary");
-const notesOutput = document.querySelector<HTMLPreElement>("#notes-output");
-
-if (!fileInput || !fileInfo || !midiSummary || !notesOutput) {
-  throw new Error("Required elements were not found");
-}
+const fileInput = getElement<HTMLInputElement>("#midi-file");
+const fileInfo = getElement<HTMLDivElement>("#file-info");
+const midiSummary = getElement<HTMLDivElement>("#midi-summary");
+const tracksOutput = getElement<HTMLDivElement>("#tracks-output");
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
 
   if (!file) {
-    fileInfo.textContent = "No file selected.";
-    midiSummary.textContent = "No MIDI data loaded.";
-    notesOutput.textContent = "No notes loaded.";
+    clearLoadedMidi();
     return;
   }
 
@@ -85,53 +91,168 @@ fileInput.addEventListener("change", async () => {
     const arrayBuffer = await file.arrayBuffer();
     const midi = new Midi(arrayBuffer);
 
-    const notes: ParsedNote[] = midi.tracks.flatMap((track, trackIndex) =>
-      track.notes.map((note) => ({
-        trackIndex,
-        name: note.name,
-        midi: note.midi,
-        time: note.time,
-        ticks: note.ticks,
-        duration: note.duration,
-        velocity: note.velocity,
-      })),
-    );
+    loadedTracks = midi.tracks.map((track, trackIndex) => {
+      const notes: RawNote[] = track.notes
+        .map((note) => ({
+          name: note.name,
+          midi: note.midi,
+          time: note.time,
+          ticks: note.ticks,
+          duration: note.duration,
+          velocity: note.velocity,
+        }))
+        .sort((a, b) => a.ticks - b.ticks || a.midi - b.midi);
 
-    notes.sort((a, b) => a.ticks - b.ticks || a.midi - b.midi);
+      return {
+        trackIndex,
+        trackName: track.name || `Track ${trackIndex}`,
+        notes,
+      };
+    });
+
+    trackBaseMidiMap.clear();
+
+    for (const track of loadedTracks) {
+      trackBaseMidiMap.set(track.trackIndex, DEFAULT_BASE_MIDI);
+    }
+
+    const totalNotes = loadedTracks.reduce(
+      (sum, track) => sum + track.notes.length,
+      0,
+    );
 
     const tempos = midi.header.tempos;
     const firstTempo = tempos[0];
 
     midiSummary.innerHTML = `
-      <strong>Tracks:</strong> ${midi.tracks.length}<br />
+      <strong>Tracks:</strong> ${loadedTracks.length}<br />
       <strong>PPQ:</strong> ${midi.header.ppq}<br />
       <strong>Tempos:</strong> ${tempos.length}<br />
       <strong>First tempo:</strong> ${
         firstTempo ? `${firstTempo.bpm.toFixed(2)} BPM` : "unknown"
       }<br />
-      <strong>Total notes:</strong> ${notes.length}
+      <strong>Total notes:</strong> ${totalNotes}
     `;
 
-    notesOutput.textContent = formatNotesPreview(notes, 100);
+    renderTracks();
   } catch (error) {
     console.error(error);
 
+    loadedTracks = [];
+    trackBaseMidiMap.clear();
+
     midiSummary.textContent = "Failed to parse MIDI file.";
-    notesOutput.textContent =
+    tracksOutput.textContent =
       error instanceof Error ? error.message : String(error);
   }
 });
 
-function formatNotesPreview(notes: ParsedNote[], limit: number): string {
+function clearLoadedMidi(): void {
+  loadedTracks = [];
+  trackBaseMidiMap.clear();
+
+  fileInfo.textContent = "No file selected.";
+  midiSummary.textContent = "No MIDI data loaded.";
+  tracksOutput.textContent = "No tracks loaded.";
+}
+
+function renderTracks(): void {
+  if (loadedTracks.length === 0) {
+    tracksOutput.textContent = "No tracks loaded.";
+    return;
+  }
+
+  tracksOutput.innerHTML = loadedTracks.map(renderTrack).join("");
+
+  const baseNoteSelects =
+    tracksOutput.querySelectorAll<HTMLSelectElement>(".base-note-select");
+
+  for (const select of baseNoteSelects) {
+    select.addEventListener("change", () => {
+      const trackIndex = Number(select.dataset.trackIndex);
+      const baseMidi = Number(select.value);
+
+      trackBaseMidiMap.set(trackIndex, baseMidi);
+      renderTracks();
+    });
+  }
+}
+
+function renderTrack(track: TrackData): string {
+  const baseMidi = trackBaseMidiMap.get(track.trackIndex) ?? DEFAULT_BASE_MIDI;
+
+  const playableNotes = track.notes.filter((note) => {
+    return midiToNoteBlockPitch(note.midi, baseMidi) !== null;
+  });
+
+  const outOfRangeNotes = track.notes.length - playableNotes.length;
+
+  return `
+    <details class="track-card">
+      <summary>
+        ${escapeHtml(track.trackName)}
+        <span class="track-meta">
+          ${track.notes.length} notes / ${playableNotes.length} playable
+        </span>
+      </summary>
+
+      <div class="track-settings">
+        <label>
+          noteBlockPitch 12 base note:
+          <select
+            class="base-note-select"
+            data-track-index="${track.trackIndex}"
+          >
+            ${renderBaseNoteOptions(baseMidi)}
+          </select>
+        </label>
+
+        <div class="track-stats">
+          <strong>Track index:</strong> ${track.trackIndex}<br />
+          <strong>Total notes:</strong> ${track.notes.length}<br />
+          <strong>Playable notes:</strong> ${playableNotes.length}<br />
+          <strong>Out-of-range notes:</strong> ${outOfRangeNotes}
+        </div>
+      </div>
+
+      <pre class="notes-output">${escapeHtml(
+        formatTrackNotesPreview(track.notes, baseMidi, 100),
+      )}</pre>
+    </details>
+  `;
+}
+
+function renderBaseNoteOptions(selectedMidi: number): string {
+  const options: string[] = [];
+
+  for (let midi = 0; midi <= 127; midi++) {
+    const selected = midi === selectedMidi ? "selected" : "";
+    options.push(`
+      <option value="${midi}" ${selected}>
+        ${midiToNoteName(midi)} / MIDI ${midi}
+      </option>
+    `);
+  }
+
+  return options.join("");
+}
+
+function formatTrackNotesPreview(
+  notes: RawNote[],
+  baseMidi: number,
+  limit: number,
+): string {
   if (notes.length === 0) {
-    return "No notes found in this MIDI file.";
+    return "No notes found in this track.";
   }
 
   const preview = notes.slice(0, limit).map((note) => {
+    const noteBlockPitch = midiToNoteBlockPitch(note.midi, baseMidi);
+
     return [
-      `track=${note.trackIndex}`,
       `name=${note.name}`,
       `midi=${note.midi}`,
+      `noteBlockPitch=${formatNoteBlockPitch(noteBlockPitch)}`,
       `ticks=${note.ticks}`,
       `time=${note.time.toFixed(3)}s`,
       `duration=${note.duration.toFixed(3)}s`,
@@ -147,6 +268,42 @@ function formatNotesPreview(notes: ParsedNote[], limit: number): string {
   }
 
   return preview.join("\n");
+}
+
+function midiToNoteBlockPitch(midi: number, baseMidi: number): number | null {
+  const pitch = midi - baseMidi + 12;
+
+  if (pitch < 0 || pitch > 24) {
+    return null;
+  }
+
+  return pitch;
+}
+
+function formatNoteBlockPitch(pitch: number | null): string {
+  return pitch === null ? "out-of-range" : String(pitch);
+}
+
+function midiToNoteName(midi: number): string {
+  const names = [
+    "C",
+    "C#",
+    "D",
+    "D#",
+    "E",
+    "F",
+    "F#",
+    "G",
+    "G#",
+    "A",
+    "A#",
+    "B",
+  ];
+
+  const name = names[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+
+  return `${name}${octave}`;
 }
 
 function formatBytes(bytes: number): string {
@@ -168,4 +325,14 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function getElement<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+
+  if (!element) {
+    throw new Error(`Element not found: ${selector}`);
+  }
+
+  return element;
 }
