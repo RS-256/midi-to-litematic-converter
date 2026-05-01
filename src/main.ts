@@ -355,7 +355,7 @@ function renderMidiSummary(
         ? `${midiMeta.firstTempoBpm.toFixed(2)} BPM`
         : "unknown / unchanged"
     }<br />
-    <strong>Total notes:</strong> ${totalNotes}
+    <strong>Total notes:</strong> ${totalNotes}<br />
     <strong>Repeater base block:</strong> ${escapeHtml(exportSettings.repeaterBaseBlockId)}<br />
   `;
 }
