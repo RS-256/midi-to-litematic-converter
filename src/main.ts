@@ -7,105 +7,193 @@ type RawNote = {
   time: number;
   ticks: number;
   duration: number;
+  durationTicks: number;
   velocity: number;
 };
 
 type TrackData = {
   trackIndex: number;
   trackName: string;
+  isPercussion: boolean;
   notes: RawNote[];
 };
 
-const DEFAULT_BASE_MIDI = 66; // F#4. noteBlockPitch 12 の基準音
+type LitematicVersion = 7;
 
-type LitematicVersion = 5 | 6 | 7;
+type ExportSettings = {
+  litematicVersion: LitematicVersion;
+  blocksPerQuarterNote: number;
+};
 
-const DEFAULT_LITEMATIC_VERSION: LitematicVersion = 7;
+type TrackSettings = {
+  trackIndex: number;
+  visible: boolean;
+  exportEnabled: boolean;
+  baseMidi: number;
+  normalBlockId: string;
+  highOverflowBlockId: string;
+  lowOverflowBlockId: string;
+};
 
-let selectedLitematicVersion: LitematicVersion = DEFAULT_LITEMATIC_VERSION;
+type PitchCorrection = "none" | "high" | "low";
+
+type CorrectedPitch = {
+  pitch: number;
+  correction: PitchCorrection;
+  rawPitch: number;
+};
+
+type BlockPlacement = {
+  x: number;
+  y: number;
+  z: number;
+  blockId: string;
+  properties?: Record<string, string>;
+};
+
+const DEFAULT_BASE_MIDI = 66; // F#4
+const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
+  litematicVersion: 7,
+  blocksPerQuarterNote: 4,
+};
+
+const DEFAULT_NORMAL_BLOCK = "minecraft:grass_block";
+const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block";
+const DEFAULT_LOW_OVERFLOW_BLOCK = "minecraft:diamond_ore";
+const DEFAULT_REPEATER_BASE_BLOCK = "minecraft:smooth_stone";
+
+const TRACK_COLORS = [
+  "#7dd3fc",
+  "#86efac",
+  "#fde047",
+  "#f0abfc",
+  "#93c5fd",
+  "#fdba74",
+  "#c4b5fd",
+  "#fca5a5",
+  "#67e8f9",
+  "#bef264",
+  "#f9a8d4",
+  "#a7f3d0",
+];
 
 let loadedTracks: TrackData[] = [];
-const trackBaseMidiMap = new Map<number, number>();
+let trackSettingsMap = new Map<number, TrackSettings>();
+let exportSettings: ExportSettings = { ...DEFAULT_EXPORT_SETTINGS };
+let selectedTrackIndex: number | null = null;
+let currentPpq = 480;
 
 const app = getElement<HTMLDivElement>("#app");
 
-if (!app) {
-  throw new Error("#app element was not found");
-}
-
 app.innerHTML = `
-  <main class="container">
-    <h1>Noteblock Litematic Generator</h1>
-
-    <p class="description">
-      Convert MIDI files into Minecraft note block litematic data.
-    </p>
-
-    <section class="card">
-      <label class="file-label" for="midi-file">
-        Select MIDI file
-      </label>
-
-      <input
-        id="midi-file"
-        type="file"
-        accept=".mid,.midi,audio/midi"
-      />
-
-      <div id="file-info" class="file-info">
-        No file selected.
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Export Settings</h2>
-
-      <div class="settings-grid">
-        <label>
-          Litematic version:
-          <select id="litematic-version-select" class="setting-select">
-            <option value="7" selected>Version 7 - MC 1.20.5+ / latest</option>
-            <option value="6">Version 6 - older modern versions</option>
-            <option value="5">Version 5 - legacy compatibility</option>
-          </select>
-        </label>
-
-        <p class="setting-help">
-          This setting will be used when generating .litematic files.
-          Track settings remain independent from the file format version.
+  <main class="app-shell">
+    <header class="app-header">
+      <div>
+        <h1>Noteblock Litematic Generator</h1>
+        <p class="description">
+          Convert MIDI tracks into Minecraft note block litematic layouts.
         </p>
       </div>
+    </header>
+
+    <section class="top-grid">
+      <section class="card top-card">
+        <label class="file-label" for="midi-file">
+          Select MIDI file
+        </label>
+
+        <input
+          id="midi-file"
+          type="file"
+          accept=".mid,.midi,audio/midi"
+        />
+
+        <div id="file-info" class="file-info">
+          No file selected.
+        </div>
+      </section>
+
+      <section class="card top-card">
+        <h2>Export Settings</h2>
+
+        <div class="settings-grid">
+          <label>
+            Litematic version:
+            <select id="litematic-version-select" class="setting-select" disabled>
+              <option value="7" selected>Version 7</option>
+            </select>
+          </label>
+
+          <label>
+            Blocks per quarter note:
+            <input
+              id="blocks-per-quarter-input"
+              class="setting-input"
+              type="number"
+              min="1"
+              step="1"
+              value="4"
+            />
+          </label>
+
+          <p class="setting-help">
+            The current builder targets Litematic v7 only. Older versions can be added later.
+          </p>
+        </div>
+      </section>
+
+      <section class="card top-card">
+        <h2>MIDI Summary</h2>
+        <div id="midi-summary" class="midi-summary">
+          No MIDI data loaded.
+        </div>
+      </section>
     </section>
 
-    <section class="card">
-      <h2>MIDI Summary</h2>
-      <div id="midi-summary" class="midi-summary">
-        No MIDI data loaded.
-      </div>
-    </section>
+    <section class="workspace">
+      <aside class="card track-sidebar">
+        <h2>Tracks</h2>
+        <div id="track-list" class="track-list">
+          No tracks loaded.
+        </div>
+      </aside>
 
-    <section class="card">
-      <h2>Tracks</h2>
-      <div id="tracks-output" class="tracks-output">
-        No tracks loaded.
-      </div>
+      <section class="main-panel">
+        <section class="card">
+          <h2>Piano Roll</h2>
+          <div id="piano-roll" class="piano-roll empty">
+            No MIDI data loaded.
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Selected Track Settings</h2>
+          <div id="selected-track-settings" class="selected-track-settings">
+            No track selected.
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Placement Preview</h2>
+          <pre id="placement-preview" class="placement-preview">No placement data.</pre>
+        </section>
+      </section>
     </section>
   </main>
 `;
 
 const fileInput = getElement<HTMLInputElement>("#midi-file");
 const fileInfo = getElement<HTMLDivElement>("#file-info");
-const litematicVersionSelect = getElement<HTMLSelectElement>(
-  "#litematic-version-select",
+const blocksPerQuarterInput = getElement<HTMLInputElement>(
+  "#blocks-per-quarter-input",
 );
 const midiSummary = getElement<HTMLDivElement>("#midi-summary");
-const tracksOutput = getElement<HTMLDivElement>("#tracks-output");
-
-litematicVersionSelect.addEventListener("change", () => {
-  selectedLitematicVersion = parseLitematicVersion(
-    litematicVersionSelect.value,
-  );
-});
+const trackList = getElement<HTMLDivElement>("#track-list");
+const pianoRoll = getElement<HTMLDivElement>("#piano-roll");
+const selectedTrackSettings = getElement<HTMLDivElement>(
+  "#selected-track-settings",
+);
+const placementPreview = getElement<HTMLPreElement>("#placement-preview");
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
@@ -126,6 +214,8 @@ fileInput.addEventListener("change", async () => {
     const arrayBuffer = await file.arrayBuffer();
     const midi = new Midi(arrayBuffer);
 
+    currentPpq = midi.header.ppq;
+
     loadedTracks = midi.tracks.map((track, trackIndex) => {
       const notes: RawNote[] = track.notes
         .map((note) => ({
@@ -134,6 +224,7 @@ fileInput.addEventListener("change", async () => {
           time: note.time,
           ticks: note.ticks,
           duration: note.duration,
+          durationTicks: note.durationTicks,
           velocity: note.velocity,
         }))
         .sort((a, b) => a.ticks - b.ticks || a.midi - b.midi);
@@ -141,154 +232,723 @@ fileInput.addEventListener("change", async () => {
       return {
         trackIndex,
         trackName: track.name || `Track ${trackIndex}`,
+        isPercussion: Boolean(track.instrument?.percussion),
         notes,
       };
     });
 
-    trackBaseMidiMap.clear();
-
-    for (const track of loadedTracks) {
-      trackBaseMidiMap.set(track.trackIndex, DEFAULT_BASE_MIDI);
-    }
-
-    const totalNotes = loadedTracks.reduce(
-      (sum, track) => sum + track.notes.length,
-      0,
-    );
+    trackSettingsMap = createDefaultTrackSettings(loadedTracks);
+    selectedTrackIndex = loadedTracks.find((track) => track.notes.length > 0)
+      ?.trackIndex ?? loadedTracks[0]?.trackIndex ?? null;
 
     const tempos = midi.header.tempos;
     const firstTempo = tempos[0];
 
-    midiSummary.innerHTML = `
-      <strong>Litematic version:</strong> ${selectedLitematicVersion}<br />
-      <strong>Tracks:</strong> ${loadedTracks.length}<br />
-      <strong>PPQ:</strong> ${midi.header.ppq}<br />
-      <strong>Tempos:</strong> ${tempos.length}<br />
-      <strong>First tempo:</strong> ${
-        firstTempo ? `${firstTempo.bpm.toFixed(2)} BPM` : "unknown"
-      }<br />
-      <strong>Total notes:</strong> ${totalNotes}
-    `;
-
-    renderTracks();
+    renderAll({
+      temposCount: tempos.length,
+      firstTempoBpm: firstTempo?.bpm,
+    });
   } catch (error) {
     console.error(error);
 
     loadedTracks = [];
-    trackBaseMidiMap.clear();
+    trackSettingsMap.clear();
+    selectedTrackIndex = null;
 
     midiSummary.textContent = "Failed to parse MIDI file.";
-    tracksOutput.textContent =
+    trackList.textContent = "No tracks loaded.";
+    pianoRoll.textContent =
       error instanceof Error ? error.message : String(error);
+    selectedTrackSettings.textContent = "No track selected.";
+    placementPreview.textContent = "No placement data.";
   }
 });
 
-function clearLoadedMidi(): void {
-  loadedTracks = [];
-  trackBaseMidiMap.clear();
+blocksPerQuarterInput.addEventListener("change", () => {
+  const value = Number(blocksPerQuarterInput.value);
 
-  fileInfo.textContent = "No file selected.";
-  midiSummary.textContent = "No MIDI data loaded.";
-  tracksOutput.textContent = "No tracks loaded.";
-}
-
-function renderTracks(): void {
-  if (loadedTracks.length === 0) {
-    tracksOutput.textContent = "No tracks loaded.";
+  if (!Number.isFinite(value) || value <= 0) {
+    blocksPerQuarterInput.value = String(exportSettings.blocksPerQuarterNote);
     return;
   }
 
-  tracksOutput.innerHTML = loadedTracks.map(renderTrack).join("");
+  exportSettings = {
+    ...exportSettings,
+    blocksPerQuarterNote: Math.round(value),
+  };
 
-  const baseNoteSelects =
-    tracksOutput.querySelectorAll<HTMLSelectElement>(".base-note-select");
+  renderAll();
+});
 
-  for (const select of baseNoteSelects) {
-    select.addEventListener("change", () => {
-      const trackIndex = Number(select.dataset.trackIndex);
-      const baseMidi = Number(select.value);
-
-      trackBaseMidiMap.set(trackIndex, baseMidi);
-      renderTracks();
-    });
-  }
+function renderAll(
+  midiMeta: { temposCount?: number; firstTempoBpm?: number } = {},
+): void {
+  renderMidiSummary(midiMeta);
+  renderTrackList();
+  renderPianoRoll();
+  renderSelectedTrackSettings();
+  renderPlacementPreview();
 }
 
-function renderTrack(track: TrackData): string {
-  const baseMidi = trackBaseMidiMap.get(track.trackIndex) ?? DEFAULT_BASE_MIDI;
+function renderMidiSummary(
+  midiMeta: { temposCount?: number; firstTempoBpm?: number } = {},
+): void {
+  if (loadedTracks.length === 0) {
+    midiSummary.textContent = "No MIDI data loaded.";
+    return;
+  }
 
-  const playableNotes = track.notes.filter((note) => {
-    return midiToNoteBlockPitch(note.midi, baseMidi) !== null;
+  const totalNotes = loadedTracks.reduce(
+    (sum, track) => sum + track.notes.length,
+    0,
+  );
+
+  const exportTracks = loadedTracks.filter((track) => {
+    return trackSettingsMap.get(track.trackIndex)?.exportEnabled;
   });
 
-  const outOfRangeNotes = track.notes.length - playableNotes.length;
-
-  return `
-    <details class="track-card">
-      <summary>
-        ${escapeHtml(track.trackName)}
-        <span class="track-meta">
-          ${track.notes.length} notes / ${playableNotes.length} playable
-        </span>
-      </summary>
-
-      <div class="track-settings">
-        <label>
-          noteBlockPitch 12 base note:
-          <select
-            class="base-note-select"
-            data-track-index="${track.trackIndex}"
-          >
-            ${renderBaseNoteOptions(baseMidi)}
-          </select>
-        </label>
-
-        <div class="track-stats">
-          <strong>Track index:</strong> ${track.trackIndex}<br />
-          <strong>Total notes:</strong> ${track.notes.length}<br />
-          <strong>Playable notes:</strong> ${playableNotes.length}<br />
-          <strong>Out-of-range notes:</strong> ${outOfRangeNotes}
-        </div>
-      </div>
-
-      <pre class="notes-output">${escapeHtml(
-        formatTrackNotesPreview(track.notes, baseMidi, 100),
-      )}</pre>
-    </details>
+  midiSummary.innerHTML = `
+    <strong>Litematic version:</strong> ${exportSettings.litematicVersion}<br />
+    <strong>Blocks per quarter note:</strong> ${exportSettings.blocksPerQuarterNote}<br />
+    <strong>Tracks:</strong> ${loadedTracks.length}<br />
+    <strong>Export tracks:</strong> ${exportTracks.length}<br />
+    <strong>PPQ:</strong> ${currentPpq}<br />
+    <strong>Tempos:</strong> ${midiMeta.temposCount ?? "loaded"}<br />
+    <strong>First tempo:</strong> ${
+      midiMeta.firstTempoBpm
+        ? `${midiMeta.firstTempoBpm.toFixed(2)} BPM`
+        : "unknown / unchanged"
+    }<br />
+    <strong>Total notes:</strong> ${totalNotes}
   `;
 }
 
-function renderBaseNoteOptions(selectedMidi: number): string {
-  const options: string[] = [];
+function renderTrackList(): void {
+  if (loadedTracks.length === 0) {
+    trackList.textContent = "No tracks loaded.";
+    return;
+  }
 
-  for (let midi = 0; midi <= 127; midi++) {
-    const selected = midi === selectedMidi ? "selected" : "";
-    options.push(`
-      <option value="${midi}" ${selected}>
-        ${midiToNoteName(midi)} / MIDI ${midi}
-      </option>
+  trackList.innerHTML = loadedTracks
+    .map((track) => {
+      const settings = getTrackSettings(track.trackIndex);
+      const isSelected = selectedTrackIndex === track.trackIndex;
+      const color = getTrackColor(track.trackIndex);
+
+      return `
+        <div
+          class="track-row ${isSelected ? "selected" : ""}"
+          data-track-index="${track.trackIndex}"
+        >
+          <button
+            type="button"
+            class="track-select-button"
+            data-track-index="${track.trackIndex}"
+          >
+            <span class="track-color" style="background: ${color}"></span>
+            <span class="track-name">
+              ${escapeHtml(track.trackName)}
+              ${
+                track.isPercussion
+                  ? `<span class="percussion-badge">Percussion</span>`
+                  : ""
+              }
+            </span>
+            <span class="track-count">${track.notes.length} notes</span>
+          </button>
+
+          <label class="track-toggle">
+            <input
+              type="checkbox"
+              class="track-visible-checkbox"
+              data-track-index="${track.trackIndex}"
+              ${settings.visible ? "checked" : ""}
+            />
+            Show
+          </label>
+
+          <label class="track-toggle">
+            <input
+              type="checkbox"
+              class="track-export-checkbox"
+              data-track-index="${track.trackIndex}"
+              ${settings.exportEnabled ? "checked" : ""}
+            />
+            Export
+          </label>
+        </div>
+      `;
+    })
+    .join("");
+
+  trackList
+    .querySelectorAll<HTMLButtonElement>(".track-select-button")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        selectedTrackIndex = Number(button.dataset.trackIndex);
+        renderAll();
+      });
+    });
+
+  trackList
+    .querySelectorAll<HTMLInputElement>(".track-visible-checkbox")
+    .forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const trackIndex = Number(checkbox.dataset.trackIndex);
+        const settings = getTrackSettings(trackIndex);
+        settings.visible = checkbox.checked;
+        renderAll();
+      });
+    });
+
+  trackList
+    .querySelectorAll<HTMLInputElement>(".track-export-checkbox")
+    .forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const trackIndex = Number(checkbox.dataset.trackIndex);
+        const settings = getTrackSettings(trackIndex);
+        settings.exportEnabled = checkbox.checked;
+        renderAll();
+      });
+    });
+}
+
+function renderPianoRoll(): void {
+  const previousScroll = pianoRoll.querySelector<HTMLDivElement>(".piano-scroll");
+
+  const previousScrollLeft = previousScroll?.scrollLeft ?? 0;
+  const previousScrollTop = previousScroll?.scrollTop ?? 0;
+
+  const visibleTracks = loadedTracks.filter((track) => {
+    return getTrackSettings(track.trackIndex).visible;
+  });
+
+  const visibleNotes = visibleTracks.flatMap((track) =>
+    track.notes.map((note) => ({ track, note })),
+  );
+
+  if (visibleNotes.length === 0) {
+    pianoRoll.className = "piano-roll empty";
+    pianoRoll.textContent = "No visible notes.";
+    return;
+  }
+
+  pianoRoll.className = "piano-roll";
+
+  const leftPad = 64;
+  const topPad = 24;
+  const rowHeight = 10;
+  const pxPerBlock = 18;
+  const rightPad = 80;
+  const bottomPad = 24;
+
+  const minMidi = Math.max(
+    0,
+    Math.min(...visibleNotes.map(({ note }) => note.midi)) - 2,
+  );
+  const maxMidi = Math.min(
+    127,
+    Math.max(...visibleNotes.map(({ note }) => note.midi)) + 2,
+  );
+
+  const maxTick = Math.max(
+    ...visibleNotes.map(({ note }) => note.ticks + note.durationTicks),
+  );
+
+  const maxQuarter = Math.ceil(maxTick / currentPpq) + 1;
+  const width =
+    leftPad +
+    maxQuarter * exportSettings.blocksPerQuarterNote * pxPerBlock +
+    rightPad;
+  const height = topPad + (maxMidi - minMidi + 1) * rowHeight + bottomPad;
+
+  const grid = renderPianoGrid({
+    leftPad,
+    topPad,
+    rowHeight,
+    pxPerBlock,
+    minMidi,
+    maxMidi,
+    maxQuarter,
+    height,
+  });
+
+  const notesSvg = visibleNotes
+    .map(({ track, note }) => {
+      const x =
+        leftPad +
+        (note.ticks / currentPpq) *
+          exportSettings.blocksPerQuarterNote *
+          pxPerBlock;
+
+      const noteWidth = Math.max(
+        4,
+        (note.durationTicks / currentPpq) *
+          exportSettings.blocksPerQuarterNote *
+          pxPerBlock,
+      );
+
+      const y = topPad + (maxMidi - note.midi) * rowHeight;
+      const isSelected = selectedTrackIndex === track.trackIndex;
+      const opacity =
+        selectedTrackIndex === null || isSelected ? "0.95" : "0.25";
+      const stroke = isSelected ? "#ffffff" : "#27272a";
+      const color = getTrackColor(track.trackIndex);
+
+      return `
+        <rect
+          class="piano-note"
+          data-track-index="${track.trackIndex}"
+          x="${x.toFixed(2)}"
+          y="${y.toFixed(2)}"
+          width="${noteWidth.toFixed(2)}"
+          height="${Math.max(4, rowHeight - 2)}"
+          rx="2"
+          fill="${color}"
+          opacity="${opacity}"
+          stroke="${stroke}"
+          stroke-width="${isSelected ? 1.5 : 0.5}"
+        />
+      `;
+    })
+    .join("");
+
+  pianoRoll.innerHTML = `
+    <div class="piano-scroll">
+      <svg
+        class="piano-svg"
+        width="${width}"
+        height="${height}"
+        viewBox="0 0 ${width} ${height}"
+        role="img"
+        aria-label="MIDI piano roll"
+      >
+        ${grid}
+        ${notesSvg}
+      </svg>
+    </div>
+  `;
+
+  const nextScroll = pianoRoll.querySelector<HTMLDivElement>(".piano-scroll");
+
+  if (nextScroll) {
+    nextScroll.scrollLeft = previousScrollLeft;
+    nextScroll.scrollTop = previousScrollTop;
+  }
+
+  const svg = pianoRoll.querySelector<SVGSVGElement>("svg");
+
+  svg?.addEventListener("click", (event) => {
+    const target = event.target as SVGElement;
+    const trackIndexValue = target.dataset.trackIndex;
+
+    if (trackIndexValue === undefined) {
+      return;
+    }
+
+    selectedTrackIndex = Number(trackIndexValue);
+    renderAll();
+  });
+}
+
+function renderPianoGrid(args: {
+  leftPad: number;
+  topPad: number;
+  rowHeight: number;
+  pxPerBlock: number;
+  minMidi: number;
+  maxMidi: number;
+  maxQuarter: number;
+  height: number;
+}): string {
+  const {
+    leftPad,
+    topPad,
+    rowHeight,
+    pxPerBlock,
+    minMidi,
+    maxMidi,
+    maxQuarter,
+    height,
+  } = args;
+
+  const horizontalLines: string[] = [];
+
+  for (let midi = minMidi; midi <= maxMidi; midi++) {
+    const y = topPad + (maxMidi - midi) * rowHeight;
+    const isC = midi % 12 === 0;
+
+    horizontalLines.push(`
+      <line
+        x1="${leftPad}"
+        y1="${y}"
+        x2="100%"
+        y2="${y}"
+        class="${isC ? "grid-line octave" : "grid-line"}"
+      />
+    `);
+
+    if (isC) {
+      horizontalLines.push(`
+        <text
+          x="${leftPad - 8}"
+          y="${y + rowHeight - 2}"
+          text-anchor="end"
+          class="pitch-label"
+        >
+          ${midiToNoteName(midi)}
+        </text>
+      `);
+    }
+  }
+
+  const verticalLines: string[] = [];
+
+  for (let quarter = 0; quarter <= maxQuarter; quarter++) {
+    const x =
+      leftPad + quarter * exportSettings.blocksPerQuarterNote * pxPerBlock;
+    const isMeasure = quarter % 4 === 0;
+
+    verticalLines.push(`
+      <line
+        x1="${x}"
+        y1="0"
+        x2="${x}"
+        y2="${height}"
+        class="${isMeasure ? "beat-line measure" : "beat-line"}"
+      />
     `);
   }
 
-  return options.join("");
+  return `
+    <rect x="0" y="0" width="100%" height="100%" class="piano-bg" />
+    ${horizontalLines.join("")}
+    ${verticalLines.join("")}
+  `;
+}
+
+function renderSelectedTrackSettings(): void {
+  if (selectedTrackIndex === null) {
+    selectedTrackSettings.textContent = "No track selected.";
+    return;
+  }
+
+  const track = loadedTracks.find(
+    (candidate) => candidate.trackIndex === selectedTrackIndex,
+  );
+
+  if (!track) {
+    selectedTrackSettings.textContent = "Selected track was not found.";
+    return;
+  }
+
+  const settings = getTrackSettings(track.trackIndex);
+  const stats = getPitchStats(track, settings);
+
+  selectedTrackSettings.innerHTML = `
+    <div class="selected-track-header">
+      <span class="track-color large" style="background: ${getTrackColor(
+        track.trackIndex,
+      )}"></span>
+      <div>
+        <strong>${escapeHtml(track.trackName)}</strong><br />
+        <span class="muted">Track ${track.trackIndex} / ${
+          track.notes.length
+        } notes</span>
+      </div>
+    </div>
+
+    ${
+      track.isPercussion
+        ? `<p class="warning-text">
+            This track is marked as percussion. Dedicated percussion handling will be added later.
+          </p>`
+        : ""
+    }
+
+    <div class="settings-grid">
+      <label>
+        noteBlockPitch 12 base note:
+        <select id="selected-base-midi" class="setting-select">
+          ${renderBaseNoteOptions(settings.baseMidi)}
+        </select>
+      </label>
+
+      <label>
+        Normal block:
+        <input
+          id="normal-block-input"
+          class="setting-input"
+          type="text"
+          value="${escapeHtml(settings.normalBlockId)}"
+        />
+      </label>
+
+      <label>
+        High overflow block:
+        <input
+          id="high-overflow-block-input"
+          class="setting-input"
+          type="text"
+          value="${escapeHtml(settings.highOverflowBlockId)}"
+        />
+      </label>
+
+      <label>
+        Low overflow block:
+        <input
+          id="low-overflow-block-input"
+          class="setting-input"
+          type="text"
+          value="${escapeHtml(settings.lowOverflowBlockId)}"
+        />
+      </label>
+    </div>
+
+    <div class="track-stats">
+      <strong>Raw in range:</strong> ${stats.none}<br />
+      <strong>High overflow corrected:</strong> ${stats.high}<br />
+      <strong>Low overflow corrected:</strong> ${stats.low}
+    </div>
+
+    <details class="notes-details">
+      <summary>Notes preview</summary>
+      <pre class="notes-output">${escapeHtml(
+        formatTrackNotesPreview(track, settings, 120),
+      )}</pre>
+    </details>
+  `;
+
+  getElement<HTMLSelectElement>("#selected-base-midi").addEventListener(
+    "change",
+    (event) => {
+      settings.baseMidi = Number((event.target as HTMLSelectElement).value);
+      renderAll();
+    },
+  );
+
+  getElement<HTMLInputElement>("#normal-block-input").addEventListener(
+    "change",
+    (event) => {
+      settings.normalBlockId = (event.target as HTMLInputElement).value.trim();
+      renderAll();
+    },
+  );
+
+  getElement<HTMLInputElement>("#high-overflow-block-input").addEventListener(
+    "change",
+    (event) => {
+      settings.highOverflowBlockId = (
+        event.target as HTMLInputElement
+      ).value.trim();
+      renderAll();
+    },
+  );
+
+  getElement<HTMLInputElement>("#low-overflow-block-input").addEventListener(
+    "change",
+    (event) => {
+      settings.lowOverflowBlockId = (
+        event.target as HTMLInputElement
+      ).value.trim();
+      renderAll();
+    },
+  );
+}
+
+function renderPlacementPreview(): void {
+  const exportTracks = loadedTracks.filter((track) => {
+    return getTrackSettings(track.trackIndex).exportEnabled;
+  });
+
+  if (exportTracks.length === 0) {
+    placementPreview.textContent = "No export tracks selected.";
+    return;
+  }
+
+  const regions = exportTracks.map((track) => {
+    const settings = getTrackSettings(track.trackIndex);
+    const placements = buildTrackPlacements(
+      track,
+      settings,
+      exportSettings,
+      currentPpq,
+    );
+
+    return {
+      subRegionName: sanitizeRegionName(track.trackName, track.trackIndex),
+      trackIndex: track.trackIndex,
+      placementCount: placements.length,
+      preview: placements.slice(0, 80),
+      truncated: placements.length > 80,
+    };
+  });
+
+  placementPreview.textContent = JSON.stringify(
+    {
+      litematicVersion: exportSettings.litematicVersion,
+      blocksPerQuarterNote: exportSettings.blocksPerQuarterNote,
+      subRegions: regions,
+    },
+    null,
+    2,
+  );
+}
+
+function buildTrackPlacements(
+  track: TrackData,
+  settings: TrackSettings,
+  currentExportSettings: ExportSettings,
+  ppq: number,
+): BlockPlacement[] {
+  const placements: BlockPlacement[] = [];
+  const zIndexByX = new Map<number, number>();
+
+  for (const note of track.notes) {
+    const x = Math.round(
+      (note.ticks / ppq) * currentExportSettings.blocksPerQuarterNote,
+    );
+
+    const z = zIndexByX.get(x) ?? 0;
+    zIndexByX.set(x, z + 1);
+
+    const correctedPitch = correctNoteBlockPitch(note.midi, settings.baseMidi);
+    const instrumentBlock = getInstrumentBlockForCorrection(
+      correctedPitch.correction,
+      settings,
+    );
+
+    placements.push({
+      x,
+      y: 0,
+      z,
+      blockId: instrumentBlock,
+    });
+
+    placements.push({
+      x,
+      y: 1,
+      z,
+      blockId: "minecraft:note_block",
+      properties: {
+        note: String(correctedPitch.pitch),
+        powered: "false",
+      },
+    });
+
+    placements.push({
+      x: x - 1,
+      y: 0,
+      z,
+      blockId: DEFAULT_REPEATER_BASE_BLOCK,
+    });
+
+    placements.push({
+      x: x - 1,
+      y: 1,
+      z,
+      blockId: "minecraft:repeater",
+      properties: {
+        delay: "1",
+        facing: "east",
+        locked: "false",
+        powered: "false",
+      },
+    });
+  }
+
+  return placements;
+}
+
+function getInstrumentBlockForCorrection(
+  correction: PitchCorrection,
+  settings: TrackSettings,
+): string {
+  if (correction === "high") {
+    return settings.highOverflowBlockId;
+  }
+
+  if (correction === "low") {
+    return settings.lowOverflowBlockId;
+  }
+
+  return settings.normalBlockId;
+}
+
+function correctNoteBlockPitch(midi: number, baseMidi: number): CorrectedPitch {
+  const rawPitch = midi - baseMidi + 12;
+
+  if (rawPitch >= 0 && rawPitch <= 24) {
+    return {
+      pitch: rawPitch,
+      correction: "none",
+      rawPitch,
+    };
+  }
+
+  if (rawPitch > 24) {
+    let pitch = rawPitch;
+
+    while (pitch > 24) {
+      pitch -= 24;
+    }
+
+    return {
+      pitch,
+      correction: "high",
+      rawPitch,
+    };
+  }
+
+  let pitch = rawPitch;
+
+  while (pitch < 0) {
+    pitch += 24;
+  }
+
+  return {
+    pitch,
+    correction: "low",
+    rawPitch,
+  };
+}
+
+function getPitchStats(
+  track: TrackData,
+  settings: TrackSettings,
+): Record<PitchCorrection, number> {
+  const stats: Record<PitchCorrection, number> = {
+    none: 0,
+    high: 0,
+    low: 0,
+  };
+
+  for (const note of track.notes) {
+    const corrected = correctNoteBlockPitch(note.midi, settings.baseMidi);
+    stats[corrected.correction]++;
+  }
+
+  return stats;
 }
 
 function formatTrackNotesPreview(
-  notes: RawNote[],
-  baseMidi: number,
+  track: TrackData,
+  settings: TrackSettings,
   limit: number,
 ): string {
-  if (notes.length === 0) {
+  if (track.notes.length === 0) {
     return "No notes found in this track.";
   }
 
-  const preview = notes.slice(0, limit).map((note) => {
-    const noteBlockPitch = midiToNoteBlockPitch(note.midi, baseMidi);
+  const preview = track.notes.slice(0, limit).map((note) => {
+    const corrected = correctNoteBlockPitch(note.midi, settings.baseMidi);
 
     return [
       `name=${note.name}`,
       `midi=${note.midi}`,
-      `noteBlockPitch=${formatNoteBlockPitch(noteBlockPitch)}`,
+      `rawPitch=${corrected.rawPitch}`,
+      `noteBlockPitch=${corrected.pitch}`,
+      `correction=${corrected.correction}`,
       `ticks=${note.ticks}`,
       `time=${note.time.toFixed(3)}s`,
       `duration=${note.duration.toFixed(3)}s`,
@@ -296,7 +956,7 @@ function formatTrackNotesPreview(
     ].join("  ");
   });
 
-  const remaining = notes.length - preview.length;
+  const remaining = track.notes.length - preview.length;
 
   if (remaining > 0) {
     preview.push("");
@@ -306,18 +966,50 @@ function formatTrackNotesPreview(
   return preview.join("\n");
 }
 
-function midiToNoteBlockPitch(midi: number, baseMidi: number): number | null {
-  const pitch = midi - baseMidi + 12;
+function createDefaultTrackSettings(
+  tracks: TrackData[],
+): Map<number, TrackSettings> {
+  const map = new Map<number, TrackSettings>();
 
-  if (pitch < 0 || pitch > 24) {
-    return null;
+  for (const track of tracks) {
+    map.set(track.trackIndex, {
+      trackIndex: track.trackIndex,
+      visible: track.notes.length > 0,
+      exportEnabled: track.notes.length > 0 && !track.isPercussion,
+      baseMidi: DEFAULT_BASE_MIDI,
+      normalBlockId: DEFAULT_NORMAL_BLOCK,
+      highOverflowBlockId: DEFAULT_HIGH_OVERFLOW_BLOCK,
+      lowOverflowBlockId: DEFAULT_LOW_OVERFLOW_BLOCK,
+    });
   }
 
-  return pitch;
+  return map;
 }
 
-function formatNoteBlockPitch(pitch: number | null): string {
-  return pitch === null ? "out-of-range" : String(pitch);
+function getTrackSettings(trackIndex: number): TrackSettings {
+  const settings = trackSettingsMap.get(trackIndex);
+
+  if (!settings) {
+    throw new Error(`Track settings not found: ${trackIndex}`);
+  }
+
+  return settings;
+}
+
+function renderBaseNoteOptions(selectedMidi: number): string {
+  const options: string[] = [];
+
+  for (let midi = 0; midi <= 127; midi++) {
+    const selected = midi === selectedMidi ? "selected" : "";
+
+    options.push(`
+      <option value="${midi}" ${selected}>
+        ${midiToNoteName(midi)} / MIDI ${midi}
+      </option>
+    `);
+  }
+
+  return options.join("");
 }
 
 function midiToNoteName(midi: number): string {
@@ -340,6 +1032,33 @@ function midiToNoteName(midi: number): string {
   const octave = Math.floor(midi / 12) - 1;
 
   return `${name}${octave}`;
+}
+
+function getTrackColor(trackIndex: number): string {
+  return TRACK_COLORS[trackIndex % TRACK_COLORS.length];
+}
+
+function sanitizeRegionName(trackName: string, trackIndex: number): string {
+  const safeName = trackName
+    .trim()
+    .replaceAll(/\s+/g, "_")
+    .replaceAll(/[^a-zA-Z0-9_.-]/g, "");
+
+  return safeName || `Track_${trackIndex}`;
+}
+
+function clearLoadedMidi(): void {
+  loadedTracks = [];
+  trackSettingsMap.clear();
+  selectedTrackIndex = null;
+
+  fileInfo.textContent = "No file selected.";
+  midiSummary.textContent = "No MIDI data loaded.";
+  trackList.textContent = "No tracks loaded.";
+  pianoRoll.className = "piano-roll empty";
+  pianoRoll.textContent = "No MIDI data loaded.";
+  selectedTrackSettings.textContent = "No track selected.";
+  placementPreview.textContent = "No placement data.";
 }
 
 function formatBytes(bytes: number): string {
@@ -371,14 +1090,4 @@ function getElement<T extends Element>(selector: string): T {
   }
 
   return element;
-}
-
-function parseLitematicVersion(value: string): LitematicVersion {
-  const version = Number(value);
-
-  if (version === 5 || version === 6 || version === 7) {
-    return version;
-  }
-
-  throw new Error(`Unsupported litematic version: ${value}`);
 }
