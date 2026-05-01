@@ -136,3 +136,30 @@ h2 {
 .track-card .notes-output {
   margin: 0 16px 16px;
 }
+
+.settings-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-grid label {
+  display: grid;
+  gap: 8px;
+  color: #d4d4d8;
+  font-weight: 700;
+}
+
+.setting-select {
+  max-width: 360px;
+  padding: 8px 10px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: #27272a;
+  color: #f4f4f5;
+}
+
+.setting-help {
+  margin: 0;
+  color: #a1a1aa;
+  line-height: 1.6;
+}

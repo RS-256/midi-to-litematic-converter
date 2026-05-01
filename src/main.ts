@@ -18,6 +18,12 @@ type TrackData = {
 
 const DEFAULT_BASE_MIDI = 66; // F#4. noteBlockPitch 12 の基準音
 
+type LitematicVersion = 5 | 6 | 7;
+
+const DEFAULT_LITEMATIC_VERSION: LitematicVersion = 7;
+
+let selectedLitematicVersion: LitematicVersion = DEFAULT_LITEMATIC_VERSION;
+
 let loadedTracks: TrackData[] = [];
 const trackBaseMidiMap = new Map<number, number>();
 
@@ -52,6 +58,26 @@ app.innerHTML = `
     </section>
 
     <section class="card">
+      <h2>Export Settings</h2>
+
+      <div class="settings-grid">
+        <label>
+          Litematic version:
+          <select id="litematic-version-select" class="setting-select">
+            <option value="7" selected>Version 7 - MC 1.20.5+ / latest</option>
+            <option value="6">Version 6 - older modern versions</option>
+            <option value="5">Version 5 - legacy compatibility</option>
+          </select>
+        </label>
+
+        <p class="setting-help">
+          This setting will be used when generating .litematic files.
+          Track settings remain independent from the file format version.
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>MIDI Summary</h2>
       <div id="midi-summary" class="midi-summary">
         No MIDI data loaded.
@@ -69,8 +95,17 @@ app.innerHTML = `
 
 const fileInput = getElement<HTMLInputElement>("#midi-file");
 const fileInfo = getElement<HTMLDivElement>("#file-info");
+const litematicVersionSelect = getElement<HTMLSelectElement>(
+  "#litematic-version-select",
+);
 const midiSummary = getElement<HTMLDivElement>("#midi-summary");
 const tracksOutput = getElement<HTMLDivElement>("#tracks-output");
+
+litematicVersionSelect.addEventListener("change", () => {
+  selectedLitematicVersion = parseLitematicVersion(
+    litematicVersionSelect.value,
+  );
+});
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
@@ -125,6 +160,7 @@ fileInput.addEventListener("change", async () => {
     const firstTempo = tempos[0];
 
     midiSummary.innerHTML = `
+      <strong>Litematic version:</strong> ${selectedLitematicVersion}<br />
       <strong>Tracks:</strong> ${loadedTracks.length}<br />
       <strong>PPQ:</strong> ${midi.header.ppq}<br />
       <strong>Tempos:</strong> ${tempos.length}<br />
@@ -335,4 +371,14 @@ function getElement<T extends Element>(selector: string): T {
   }
 
   return element;
+}
+
+function parseLitematicVersion(value: string): LitematicVersion {
+  const version = Number(value);
+
+  if (version === 5 || version === 6 || version === 7) {
+    return version;
+  }
+
+  throw new Error(`Unsupported litematic version: ${value}`);
 }
