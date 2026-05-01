@@ -1,5 +1,9 @@
 import { Midi } from "@tonejs/midi";
 import "./style.css";
+import {
+  writeLitematicV7,
+  type BlockPlacement,
+} from "./litematic/writeLitematicV7";
 
 type RawNote = {
   name: string;
@@ -23,6 +27,7 @@ type LitematicVersion = 7;
 type ExportSettings = {
   litematicVersion: LitematicVersion;
   blocksPerQuarterNote: number;
+  repeaterBaseBlockId: string;
 };
 
 type TrackSettings = {
@@ -43,24 +48,16 @@ type CorrectedPitch = {
   rawPitch: number;
 };
 
-type BlockPlacement = {
-  x: number;
-  y: number;
-  z: number;
-  blockId: string;
-  properties?: Record<string, string>;
-};
-
 const DEFAULT_BASE_MIDI = 66; // F#4
 const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   litematicVersion: 7,
   blocksPerQuarterNote: 4,
+  repeaterBaseBlockId: "minecraft:white_concrete",
 };
 
 const DEFAULT_NORMAL_BLOCK = "minecraft:grass_block";
 const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block";
 const DEFAULT_LOW_OVERFLOW_BLOCK = "minecraft:diamond_ore";
-const DEFAULT_REPEATER_BASE_BLOCK = "minecraft:smooth_stone";
 
 const TRACK_COLORS = [
   "#7dd3fc",
@@ -136,6 +133,16 @@ app.innerHTML = `
             />
           </label>
 
+          <label>
+            Repeater base block:
+            <input
+              id="repeater-base-block-input"
+              class="setting-input"
+              type="text"
+              value="minecraft:white_concrete"
+            />
+          </label>
+
           <p class="setting-help">
             The current builder targets Litematic v7 only. Older versions can be added later.
           </p>
@@ -174,7 +181,13 @@ app.innerHTML = `
         </section>
 
         <section class="card">
-          <h2>Placement Preview</h2>
+          <div class="section-header">
+            <h2>Placement Preview</h2>
+            <button id="download-litematic-button" class="primary-button" type="button">
+              Download .litematic
+            </button>
+          </div>
+
           <pre id="placement-preview" class="placement-preview">No placement data.</pre>
         </section>
       </section>
@@ -187,6 +200,9 @@ const fileInfo = getElement<HTMLDivElement>("#file-info");
 const blocksPerQuarterInput = getElement<HTMLInputElement>(
   "#blocks-per-quarter-input",
 );
+const repeaterBaseBlockInput = getElement<HTMLInputElement>(
+  "#repeater-base-block-input",
+);
 const midiSummary = getElement<HTMLDivElement>("#midi-summary");
 const trackList = getElement<HTMLDivElement>("#track-list");
 const pianoRoll = getElement<HTMLDivElement>("#piano-roll");
@@ -194,6 +210,9 @@ const selectedTrackSettings = getElement<HTMLDivElement>(
   "#selected-track-settings",
 );
 const placementPreview = getElement<HTMLPreElement>("#placement-preview");
+const downloadLitematicButton = getElement<HTMLButtonElement>(
+  "#download-litematic-button",
+);
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
@@ -280,6 +299,22 @@ blocksPerQuarterInput.addEventListener("change", () => {
   renderAll();
 });
 
+repeaterBaseBlockInput.addEventListener("change", () => {
+  const blockId = repeaterBaseBlockInput.value.trim();
+
+  if (!blockId) {
+    repeaterBaseBlockInput.value = exportSettings.repeaterBaseBlockId;
+    return;
+  }
+
+  exportSettings = {
+    ...exportSettings,
+    repeaterBaseBlockId: blockId,
+  };
+
+  renderAll();
+});
+
 function renderAll(
   midiMeta: { temposCount?: number; firstTempoBpm?: number } = {},
 ): void {
@@ -320,6 +355,7 @@ function renderMidiSummary(
         : "unknown / unchanged"
     }<br />
     <strong>Total notes:</strong> ${totalNotes}
+    <strong>Repeater base block:</strong> ${escapeHtml(exportSettings.repeaterBaseBlockId)}<br />
   `;
 }
 
@@ -766,21 +802,21 @@ function renderPlacementPreview(): void {
     return;
   }
 
-  const regions = exportTracks.map((track) => {
+  const regions = exportTracks.map((track, exportIndex) => {
     const settings = getTrackSettings(track.trackIndex);
+    const trackYOffset = -3 * exportIndex;
+
     const placements = buildTrackPlacements(
       track,
       settings,
       exportSettings,
       currentPpq,
+      trackYOffset,
     );
 
     return {
-      subRegionName: sanitizeRegionName(track.trackName, track.trackIndex),
-      trackIndex: track.trackIndex,
-      placementCount: placements.length,
-      preview: placements.slice(0, 80),
-      truncated: placements.length > 80,
+      name: sanitizeRegionName(track.trackName, track.trackIndex),
+      placements,
     };
   });
 
@@ -800,6 +836,7 @@ function buildTrackPlacements(
   settings: TrackSettings,
   currentExportSettings: ExportSettings,
   ppq: number,
+  trackYOffset: number,
 ): BlockPlacement[] {
   const placements: BlockPlacement[] = [];
   const zIndexByX = new Map<number, number>();
@@ -807,6 +844,14 @@ function buildTrackPlacements(
   for (const note of track.notes) {
     const x = Math.round(
       (note.ticks / ppq) * currentExportSettings.blocksPerQuarterNote,
+    );
+
+    const noteLengthBlocks = Math.max(
+      1,
+      Math.round(
+        (note.durationTicks / ppq) *
+          currentExportSettings.blocksPerQuarterNote,
+      ),
     );
 
     const z = zIndexByX.get(x) ?? 0;
@@ -820,41 +865,44 @@ function buildTrackPlacements(
 
     placements.push({
       x,
-      y: 0,
+      y: trackYOffset,
       z,
       blockId: instrumentBlock,
     });
 
     placements.push({
       x,
-      y: 1,
+      y: trackYOffset + 1,
       z,
       blockId: "minecraft:note_block",
       properties: {
+        instrument: "harp",
         note: String(correctedPitch.pitch),
         powered: "false",
       },
     });
 
-    placements.push({
-      x: x - 1,
-      y: 0,
-      z,
-      blockId: DEFAULT_REPEATER_BASE_BLOCK,
-    });
+    for (let offset = 1; offset < noteLengthBlocks; offset++) {
+      placements.push({
+        x: x + offset,
+        y: trackYOffset,
+        z,
+        blockId: currentExportSettings.repeaterBaseBlockId,
+      });
 
-    placements.push({
-      x: x - 1,
-      y: 1,
-      z,
-      blockId: "minecraft:repeater",
-      properties: {
-        delay: "1",
-        facing: "east",
-        locked: "false",
-        powered: "false",
-      },
-    });
+      placements.push({
+        x: x + offset,
+        y: trackYOffset + 1,
+        z,
+        blockId: "minecraft:repeater",
+        properties: {
+          delay: "1",
+          facing: "west",
+          locked: "false",
+          powered: "false",
+        },
+      });
+    }
   }
 
   return placements;
@@ -1090,4 +1138,67 @@ function getElement<T extends Element>(selector: string): T {
   }
 
   return element;
+}
+
+downloadLitematicButton.addEventListener("click", () => {
+  const exportTracks = loadedTracks.filter((track) => {
+    return getTrackSettings(track.trackIndex).exportEnabled;
+  });
+
+  if (exportTracks.length === 0) {
+    alert("No export tracks selected.");
+    return;
+  }
+
+  const regions = exportTracks.map((track, exportIndex) => {
+    const settings = getTrackSettings(track.trackIndex);
+    const trackYOffset = -3 * exportIndex;
+
+    const placements = buildTrackPlacements(
+      track,
+      settings,
+      exportSettings,
+      currentPpq,
+      trackYOffset,
+    );
+
+    return {
+      name: sanitizeRegionName(track.trackName, track.trackIndex),
+      placements,
+    };
+  });
+
+  const bytes = writeLitematicV7({
+    name: "noteblock_export",
+    author: "Noteblock Litematic Generator",
+    description: "Generated from MIDI",
+    minecraftDataVersion: 4671,
+    regions,
+  });
+
+  downloadBytes(bytes, "noteblock_export.litematic", "application/octet-stream");
+});
+
+function downloadBytes(
+  bytes: Uint8Array,
+  fileName: string,
+  mimeType: string,
+): void {
+  const arrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+
+  const blob = new Blob([arrayBuffer], {
+    type: mimeType,
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  URL.revokeObjectURL(url);
 }

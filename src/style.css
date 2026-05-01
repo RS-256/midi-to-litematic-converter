@@ -330,3 +330,24 @@ h2 {
 .top-grid .card {
   margin-top: 0;
 }
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.primary-button {
+  padding: 9px 14px;
+  border: 1px solid #60a5fa;
+  border-radius: 10px;
+  background: #1d4ed8;
+  color: #eff6ff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: #2563eb;
+}
