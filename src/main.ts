@@ -144,7 +144,8 @@ app.innerHTML = `
           </label>
 
           <p class="setting-help">
-            The current builder targets Litematic v7 only. Older versions can be added later.
+            The builder uses twice this value internally so note durations align with repeater timing.
+            Litematic v7 only for now.
           </p>
         </div>
       </section>
@@ -839,23 +840,24 @@ function buildTrackPlacements(
   trackYOffset: number,
 ): BlockPlacement[] {
   const placements: BlockPlacement[] = [];
-  const zIndexByX = new Map<number, number>();
+  const laneEndXList: number[] = [];
+
+  const effectiveBlocksPerQuarterNote =
+    currentExportSettings.blocksPerQuarterNote * 2;
 
   for (const note of track.notes) {
     const x = Math.round(
-      (note.ticks / ppq) * currentExportSettings.blocksPerQuarterNote,
+      (note.ticks / ppq) * effectiveBlocksPerQuarterNote,
     );
 
     const noteLengthBlocks = Math.max(
       1,
       Math.round(
-        (note.durationTicks / ppq) *
-          currentExportSettings.blocksPerQuarterNote,
+        (note.durationTicks / ppq) * effectiveBlocksPerQuarterNote,
       ),
     );
 
-    const z = zIndexByX.get(x) ?? 0;
-    zIndexByX.set(x, z + 1);
+    const z = allocateLane(laneEndXList, x, noteLengthBlocks);
 
     const correctedPitch = correctNoteBlockPitch(note.midi, settings.baseMidi);
     const instrumentBlock = getInstrumentBlockForCorrection(
@@ -890,22 +892,46 @@ function buildTrackPlacements(
         blockId: currentExportSettings.repeaterBaseBlockId,
       });
 
+      const isRepeaterPosition = offset % 2 === 1;
+
       placements.push({
         x: x + offset,
         y: trackYOffset + 1,
         z,
-        blockId: "minecraft:repeater",
-        properties: {
-          delay: "1",
-          facing: "west",
-          locked: "false",
-          powered: "false",
-        },
+        blockId: isRepeaterPosition
+          ? "minecraft:repeater"
+          : currentExportSettings.repeaterBaseBlockId,
+        properties: isRepeaterPosition
+          ? {
+              delay: "1",
+              facing: "west",
+              locked: "false",
+              powered: "false",
+            }
+          : undefined,
       });
     }
   }
 
   return placements;
+}
+
+function allocateLane(
+  laneEndXList: number[],
+  startX: number,
+  length: number,
+): number {
+  const endX = startX + length - 1;
+
+  for (let lane = 0; lane < laneEndXList.length; lane++) {
+    if (startX > laneEndXList[lane]) {
+      laneEndXList[lane] = endX;
+      return lane;
+    }
+  }
+
+  laneEndXList.push(endX);
+  return laneEndXList.length - 1;
 }
 
 function getInstrumentBlockForCorrection(
