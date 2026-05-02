@@ -37,6 +37,17 @@ type PercussionMapping = {
   note: number;
 };
 
+type PercussionPresetEntry = {
+  blockId: string;
+  note: number;
+  enabled?: boolean;
+};
+
+type PercussionPreset = {
+  label: string;
+  mappings: Record<number, PercussionPresetEntry>;
+};
+
 type TrackSettings = {
   trackIndex: number;
   visible: boolean;
@@ -134,6 +145,74 @@ const GM_PERCUSSION_NAMES: Record<number, string> = {
   80: "Mute Triangle",
   81: "Open Triangle",
 };
+
+const PERCUSSION_PRESETS = {
+  genericMinecraft: {
+    label: "Generic Minecraft Percussion",
+    mappings: {
+      // Bass drums
+      35: { blockId: "minecraft:stone", note: 0 },
+      36: { blockId: "minecraft:stone", note: 0 },
+
+      // Stick / snare / clap
+      37: { blockId: "minecraft:sand", note: 4 },
+      38: { blockId: "minecraft:sand", note: 6 },
+      39: { blockId: "minecraft:sand", note: 8 },
+      40: { blockId: "minecraft:sand", note: 10 },
+
+      // Toms
+      41: { blockId: "minecraft:clay", note: 3 },
+      43: { blockId: "minecraft:clay", note: 5 },
+      45: { blockId: "minecraft:clay", note: 7 },
+      47: { blockId: "minecraft:clay", note: 9 },
+      48: { blockId: "minecraft:clay", note: 11 },
+      50: { blockId: "minecraft:clay", note: 13 },
+
+      // Hi-hats / cymbals
+      42: { blockId: "minecraft:glass", note: 16 },
+      44: { blockId: "minecraft:glass", note: 18 },
+      46: { blockId: "minecraft:glass", note: 20 },
+      49: { blockId: "minecraft:gold_block", note: 18 },
+      51: { blockId: "minecraft:gold_block", note: 16 },
+      52: { blockId: "minecraft:gold_block", note: 20 },
+      53: { blockId: "minecraft:gold_block", note: 22 },
+      55: { blockId: "minecraft:gold_block", note: 21 },
+      57: { blockId: "minecraft:gold_block", note: 19 },
+      59: { blockId: "minecraft:gold_block", note: 17 },
+
+      // Small percussion
+      54: { blockId: "minecraft:glass", note: 12 },
+      56: { blockId: "minecraft:iron_block", note: 18 },
+      58: { blockId: "minecraft:iron_block", note: 12 },
+      69: { blockId: "minecraft:glass", note: 10 },
+      70: { blockId: "minecraft:glass", note: 8 },
+      75: { blockId: "minecraft:wood", note: 12 },
+      76: { blockId: "minecraft:wood", note: 14 },
+      77: { blockId: "minecraft:wood", note: 10 },
+
+      // Bongos / congas / timbales
+      60: { blockId: "minecraft:wood", note: 16 },
+      61: { blockId: "minecraft:wood", note: 12 },
+      62: { blockId: "minecraft:wood", note: 14 },
+      63: { blockId: "minecraft:wood", note: 16 },
+      64: { blockId: "minecraft:wood", note: 10 },
+      65: { blockId: "minecraft:clay", note: 16 },
+      66: { blockId: "minecraft:clay", note: 12 },
+      67: { blockId: "minecraft:gold_block", note: 14 },
+      68: { blockId: "minecraft:gold_block", note: 10 },
+
+      // Whistles / guiro / triangle
+      71: { blockId: "minecraft:glass", note: 22 },
+      72: { blockId: "minecraft:glass", note: 20 },
+      73: { blockId: "minecraft:glass", note: 14 },
+      74: { blockId: "minecraft:glass", note: 16 },
+      80: { blockId: "minecraft:iron_block", note: 20 },
+      81: { blockId: "minecraft:iron_block", note: 22 },
+    },
+  },
+} satisfies Record<string, PercussionPreset>;
+
+type PercussionPresetId = keyof typeof PERCUSSION_PRESETS;
 
 let loadedTracks: TrackData[] = [];
 let trackSettingsMap = new Map<number, TrackSettings>();
@@ -883,6 +962,21 @@ function renderPercussionTrackSettings(
     </p>
 
     <div class="percussion-toolbar">
+      <label class="preset-label">
+        Preset:
+        <select id="percussion-preset-select" class="setting-select compact-select">
+          ${renderPercussionPresetOptions()}
+        </select>
+      </label>
+
+      <button
+        id="apply-percussion-preset-button"
+        class="secondary-button"
+        type="button"
+      >
+        Apply preset
+      </button>
+
       <button
         id="reset-percussion-mapping-button"
         class="secondary-button"
@@ -956,6 +1050,23 @@ function renderPercussionTrackSettings(
       )}</pre>
     </details>
   `;
+
+  getElement<HTMLButtonElement>(
+    "#apply-percussion-preset-button",
+  ).addEventListener("click", () => {
+    const presetSelect = getElement<HTMLSelectElement>(
+      "#percussion-preset-select",
+    );
+
+    const presetId = parsePercussionPresetId(presetSelect.value);
+
+    settings.percussionMappings = applyPercussionPreset(
+      settings.percussionMappings,
+      presetId,
+    );
+
+    renderAll();
+  });
 
   getElement<HTMLButtonElement>(
     "#reset-percussion-mapping-button",
@@ -1642,4 +1753,51 @@ function clampInteger(value: number, min: number, max: number): number {
   }
 
   return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function applyPercussionPreset(
+  mappings: PercussionMapping[],
+  presetId: PercussionPresetId,
+): PercussionMapping[] {
+  const preset: PercussionPreset = PERCUSSION_PRESETS[presetId];
+
+  return mappings.map((mapping) => {
+    const presetEntry = preset.mappings[mapping.midi];
+
+    if (!presetEntry) {
+      return {
+        ...mapping,
+        blockId: DEFAULT_PERCUSSION_BLOCK,
+        note: DEFAULT_PERCUSSION_NOTE,
+        enabled: true,
+      };
+    }
+
+    return {
+      ...mapping,
+      blockId: presetEntry.blockId,
+      note: clampInteger(presetEntry.note, 0, 24),
+      enabled: presetEntry.enabled ?? true,
+    };
+  });
+}
+
+function renderPercussionPresetOptions(): string {
+  return Object.entries(PERCUSSION_PRESETS)
+    .map(([presetId, preset]) => {
+      return `
+        <option value="${presetId}">
+          ${escapeHtml(preset.label)}
+        </option>
+      `;
+    })
+    .join("");
+}
+
+function parsePercussionPresetId(value: string): PercussionPresetId {
+  if (value in PERCUSSION_PRESETS) {
+    return value as PercussionPresetId;
+  }
+
+  throw new Error(`Unknown percussion preset: ${value}`);
 }
