@@ -30,6 +30,13 @@ type ExportSettings = {
   repeaterBaseBlockId: string;
 };
 
+type PercussionMapping = {
+  midi: number;
+  enabled: boolean;
+  blockId: string;
+  note: number;
+};
+
 type TrackSettings = {
   trackIndex: number;
   visible: boolean;
@@ -38,6 +45,7 @@ type TrackSettings = {
   normalBlockId: string;
   highOverflowBlockId: string;
   lowOverflowBlockId: string;
+  percussionMappings: PercussionMapping[];
 };
 
 type PitchCorrection = "none" | "high" | "low";
@@ -73,6 +81,59 @@ const TRACK_COLORS = [
   "#f9a8d4",
   "#a7f3d0",
 ];
+
+const DEFAULT_PERCUSSION_BLOCK = "minecraft:stone";
+const DEFAULT_PERCUSSION_NOTE = 0;
+
+const GM_PERCUSSION_NAMES: Record<number, string> = {
+  35: "Acoustic Bass Drum",
+  36: "Bass Drum 1",
+  37: "Side Stick",
+  38: "Acoustic Snare",
+  39: "Hand Clap",
+  40: "Electric Snare",
+  41: "Low Floor Tom",
+  42: "Closed Hi-Hat",
+  43: "High Floor Tom",
+  44: "Pedal Hi-Hat",
+  45: "Low Tom",
+  46: "Open Hi-Hat",
+  47: "Low-Mid Tom",
+  48: "Hi-Mid Tom",
+  49: "Crash Cymbal 1",
+  50: "High Tom",
+  51: "Ride Cymbal 1",
+  52: "Chinese Cymbal",
+  53: "Ride Bell",
+  54: "Tambourine",
+  55: "Splash Cymbal",
+  56: "Cowbell",
+  57: "Crash Cymbal 2",
+  58: "Vibraslap",
+  59: "Ride Cymbal 2",
+  60: "Hi Bongo",
+  61: "Low Bongo",
+  62: "Mute Hi Conga",
+  63: "Open Hi Conga",
+  64: "Low Conga",
+  65: "High Timbale",
+  66: "Low Timbale",
+  67: "High Agogo",
+  68: "Low Agogo",
+  69: "Cabasa",
+  70: "Maracas",
+  71: "Short Whistle",
+  72: "Long Whistle",
+  73: "Short Guiro",
+  74: "Long Guiro",
+  75: "Claves",
+  76: "Hi Wood Block",
+  77: "Low Wood Block",
+  78: "Mute Cuica",
+  79: "Open Cuica",
+  80: "Mute Triangle",
+  81: "Open Triangle",
+};
 
 let loadedTracks: TrackData[] = [];
 let trackSettingsMap = new Map<number, TrackSettings>();
@@ -680,6 +741,11 @@ function renderSelectedTrackSettings(): void {
   }
 
   const settings = getTrackSettings(track.trackIndex);
+  if (track.isPercussion) {
+    renderPercussionTrackSettings(track, settings);
+    return;
+  }
+
   const stats = getPitchStats(track, settings);
 
   selectedTrackSettings.innerHTML = `
@@ -793,6 +859,152 @@ function renderSelectedTrackSettings(): void {
   );
 }
 
+function renderPercussionTrackSettings(
+  track: TrackData,
+  settings: TrackSettings,
+): void {
+  const counts = countNotesByMidi(track);
+
+  selectedTrackSettings.innerHTML = `
+    <div class="selected-track-header">
+      <span class="track-color large" style="background: ${getTrackColor(
+        track.trackIndex,
+      )}"></span>
+      <div>
+        <strong>${escapeHtml(track.trackName)}</strong><br />
+        <span class="muted">Track ${track.trackIndex} / Percussion / ${
+          track.notes.length
+        } notes</span>
+      </div>
+    </div>
+
+    <p class="warning-text">
+      This track is marked as percussion. Each MIDI note is mapped manually to a block and note value.
+    </p>
+
+    <div class="percussion-toolbar">
+      <button
+        id="reset-percussion-mapping-button"
+        class="secondary-button"
+        type="button"
+      >
+        Reset mappings
+      </button>
+    </div>
+
+    <div class="percussion-table-wrap">
+      <table class="percussion-table">
+        <thead>
+          <tr>
+            <th>Enabled</th>
+            <th>MIDI</th>
+            <th>Name</th>
+            <th>Count</th>
+            <th>Block ID</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${settings.percussionMappings
+            .map((mapping) => {
+              const count = counts.get(mapping.midi) ?? 0;
+
+              return `
+                <tr>
+                  <td>
+                    <input
+                      type="checkbox"
+                      class="percussion-enabled-input"
+                      data-midi="${mapping.midi}"
+                      ${mapping.enabled ? "checked" : ""}
+                    />
+                  </td>
+                  <td>${mapping.midi}</td>
+                  <td>${escapeHtml(getPercussionName(mapping.midi))}</td>
+                  <td>${count}</td>
+                  <td>
+                    <input
+                      type="text"
+                      class="percussion-block-input"
+                      data-midi="${mapping.midi}"
+                      value="${escapeHtml(mapping.blockId)}"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      class="percussion-note-input"
+                      data-midi="${mapping.midi}"
+                      min="0"
+                      max="24"
+                      step="1"
+                      value="${mapping.note}"
+                    />
+                  </td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+
+    <details class="notes-details">
+      <summary>Notes preview</summary>
+      <pre class="notes-output">${escapeHtml(
+        formatPercussionNotesPreview(track, settings, 120),
+      )}</pre>
+    </details>
+  `;
+
+  getElement<HTMLButtonElement>(
+    "#reset-percussion-mapping-button",
+  ).addEventListener("click", () => {
+    settings.percussionMappings = createDefaultPercussionMappings(track);
+    renderAll();
+  });
+
+  selectedTrackSettings
+    .querySelectorAll<HTMLInputElement>(".percussion-enabled-input")
+    .forEach((input) => {
+      input.addEventListener("change", () => {
+        const mapping = getPercussionMapping(settings, Number(input.dataset.midi));
+        mapping.enabled = input.checked;
+        renderPlacementPreview();
+      });
+    });
+
+  selectedTrackSettings
+    .querySelectorAll<HTMLInputElement>(".percussion-block-input")
+    .forEach((input) => {
+      input.addEventListener("change", () => {
+        const mapping = getPercussionMapping(settings, Number(input.dataset.midi));
+        const value = input.value.trim();
+
+        if (!value) {
+          input.value = mapping.blockId;
+          return;
+        }
+
+        mapping.blockId = value;
+        renderPlacementPreview();
+      });
+    });
+
+  selectedTrackSettings
+    .querySelectorAll<HTMLInputElement>(".percussion-note-input")
+    .forEach((input) => {
+      input.addEventListener("change", () => {
+        const mapping = getPercussionMapping(settings, Number(input.dataset.midi));
+        const value = clampInteger(Number(input.value), 0, 24);
+
+        mapping.note = value;
+        input.value = String(value);
+        renderPlacementPreview();
+      });
+    });
+}
+
 function renderPlacementPreview(): void {
   const exportTracks = loadedTracks.filter((track) => {
     return getTrackSettings(track.trackIndex).exportEnabled;
@@ -839,6 +1051,32 @@ function buildTrackPlacements(
   ppq: number,
   trackYOffset: number,
 ): BlockPlacement[] {
+  if (track.isPercussion) {
+    return buildPercussionTrackPlacements(
+      track,
+      settings,
+      currentExportSettings,
+      ppq,
+      trackYOffset,
+    );
+  }
+
+  return buildNormalTrackPlacements(
+    track,
+    settings,
+    currentExportSettings,
+    ppq,
+    trackYOffset,
+  );
+}
+
+function buildNormalTrackPlacements(
+  track: TrackData,
+  settings: TrackSettings,
+  currentExportSettings: ExportSettings,
+  ppq: number,
+  trackYOffset: number,
+): BlockPlacement[] {
   const placements: BlockPlacement[] = [];
   const laneEndXList: number[] = [];
 
@@ -865,52 +1103,135 @@ function buildTrackPlacements(
       settings,
     );
 
-    placements.push({
+    addNoteLayoutPlacements({
+      placements,
       x,
       y: trackYOffset,
       z,
-      blockId: instrumentBlock,
+      noteLengthBlocks,
+      baseBlockId: instrumentBlock,
+      noteBlockPitch: correctedPitch.pitch,
+      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId,
+    });
+  }
+
+  return placements;
+}
+
+function addNoteLayoutPlacements(args: {
+  placements: BlockPlacement[];
+  x: number;
+  y: number;
+  z: number;
+  noteLengthBlocks: number;
+  baseBlockId: string;
+  noteBlockPitch: number;
+  repeaterBaseBlockId: string;
+}): void {
+  const {
+    placements,
+    x,
+    y,
+    z,
+    noteLengthBlocks,
+    baseBlockId,
+    noteBlockPitch,
+    repeaterBaseBlockId,
+  } = args;
+
+  placements.push({
+    x,
+    y,
+    z,
+    blockId: baseBlockId,
+  });
+
+  placements.push({
+    x,
+    y: y + 1,
+    z,
+    blockId: "minecraft:note_block",
+    properties: {
+      instrument: "harp",
+      note: String(noteBlockPitch),
+      powered: "false",
+    },
+  });
+
+  for (let offset = 1; offset < noteLengthBlocks; offset++) {
+    const isRepeaterPosition = offset % 2 === 1;
+
+    placements.push({
+      x: x + offset,
+      y,
+      z,
+      blockId: repeaterBaseBlockId,
     });
 
     placements.push({
-      x,
-      y: trackYOffset + 1,
+      x: x + offset,
+      y: y + 1,
       z,
-      blockId: "minecraft:note_block",
-      properties: {
-        instrument: "harp",
-        note: String(correctedPitch.pitch),
-        powered: "false",
-      },
+      blockId: isRepeaterPosition
+        ? "minecraft:repeater"
+        : repeaterBaseBlockId,
+      properties: isRepeaterPosition
+        ? {
+            delay: "1",
+            facing: "west",
+            locked: "false",
+            powered: "false",
+          }
+        : undefined,
     });
+  }
+}
 
-    for (let offset = 1; offset < noteLengthBlocks; offset++) {
-      placements.push({
-        x: x + offset,
-        y: trackYOffset,
-        z,
-        blockId: currentExportSettings.repeaterBaseBlockId,
-      });
+function buildPercussionTrackPlacements(
+  track: TrackData,
+  settings: TrackSettings,
+  currentExportSettings: ExportSettings,
+  ppq: number,
+  trackYOffset: number,
+): BlockPlacement[] {
+  const placements: BlockPlacement[] = [];
+  const laneEndXList: number[] = [];
 
-      const isRepeaterPosition = offset % 2 === 1;
+  const effectiveBlocksPerQuarterNote =
+    currentExportSettings.blocksPerQuarterNote * 2;
 
-      placements.push({
-        x: x + offset,
-        y: trackYOffset + 1,
-        z,
-        blockId: isRepeaterPosition
-          ? "minecraft:repeater"
-          : currentExportSettings.repeaterBaseBlockId,
-        properties: isRepeaterPosition
-          ? {
-              delay: "1",
-              facing: "west",
-              locked: "false",
-              powered: "false",
-            }
-          : undefined,
-      });
+  for (const note of track.notes) {
+    const mapping = settings.percussionMappings.find(
+      (candidate) => candidate.midi === note.midi,
+    );
+
+    if (!mapping || !mapping.enabled) {
+      continue;
     }
+
+    const x = Math.round(
+      (note.ticks / ppq) * effectiveBlocksPerQuarterNote,
+    );
+
+    const noteLengthBlocks = Math.max(
+      1,
+      Math.round(
+        (note.durationTicks / ppq) * effectiveBlocksPerQuarterNote,
+      ),
+    );
+
+    const z = allocateLane(laneEndXList, x, noteLengthBlocks);
+
+    addNoteLayoutPlacements({
+      placements,
+      x,
+      y: trackYOffset,
+      z,
+      noteLengthBlocks,
+      baseBlockId: mapping.blockId,
+      noteBlockPitch: clampInteger(mapping.note, 0, 24),
+      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId,
+    });
   }
 
   return placements;
@@ -1054,10 +1375,30 @@ function createDefaultTrackSettings(
       normalBlockId: DEFAULT_NORMAL_BLOCK,
       highOverflowBlockId: DEFAULT_HIGH_OVERFLOW_BLOCK,
       lowOverflowBlockId: DEFAULT_LOW_OVERFLOW_BLOCK,
+      percussionMappings: createDefaultPercussionMappings(track),
     });
   }
 
   return map;
+}
+
+function createDefaultPercussionMappings(
+  track: TrackData,
+): PercussionMapping[] {
+  if (!track.isPercussion) {
+    return [];
+  }
+
+  const midiValues = Array.from(
+    new Set(track.notes.map((note) => note.midi)),
+  ).sort((a, b) => a - b);
+
+  return midiValues.map((midi) => ({
+    midi,
+    enabled: true,
+    blockId: DEFAULT_PERCUSSION_BLOCK,
+    note: DEFAULT_PERCUSSION_NOTE,
+  }));
 }
 
 function getTrackSettings(trackIndex: number): TrackSettings {
@@ -1227,4 +1568,78 @@ function downloadBytes(
   link.click();
 
   URL.revokeObjectURL(url);
+}
+
+function countNotesByMidi(track: TrackData): Map<number, number> {
+  const counts = new Map<number, number>();
+
+  for (const note of track.notes) {
+    counts.set(note.midi, (counts.get(note.midi) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+function getPercussionName(midi: number): string {
+  return GM_PERCUSSION_NAMES[midi] ?? `Percussion ${midi}`;
+}
+
+function getPercussionMapping(
+  settings: TrackSettings,
+  midi: number,
+): PercussionMapping {
+  const mapping = settings.percussionMappings.find(
+    (candidate) => candidate.midi === midi,
+  );
+
+  if (!mapping) {
+    throw new Error(`Percussion mapping not found: MIDI ${midi}`);
+  }
+
+  return mapping;
+}
+
+function formatPercussionNotesPreview(
+  track: TrackData,
+  settings: TrackSettings,
+  limit: number,
+): string {
+  if (track.notes.length === 0) {
+    return "No percussion notes found in this track.";
+  }
+
+  const preview = track.notes.slice(0, limit).map((note) => {
+    const mapping = settings.percussionMappings.find(
+      (candidate) => candidate.midi === note.midi,
+    );
+
+    return [
+      `name=${getPercussionName(note.midi)}`,
+      `midi=${note.midi}`,
+      `mappedBlock=${mapping?.blockId ?? "unmapped"}`,
+      `mappedNote=${mapping?.note ?? "unmapped"}`,
+      `enabled=${mapping?.enabled ?? false}`,
+      `ticks=${note.ticks}`,
+      `time=${note.time.toFixed(3)}s`,
+      `duration=${note.duration.toFixed(3)}s`,
+      `velocity=${note.velocity.toFixed(2)}`,
+    ].join("  ");
+  });
+
+  const remaining = track.notes.length - preview.length;
+
+  if (remaining > 0) {
+    preview.push("");
+    preview.push(`...and ${remaining} more notes`);
+  }
+
+  return preview.join("\n");
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.max(min, Math.min(max, Math.round(value)));
 }

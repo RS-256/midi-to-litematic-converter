@@ -351,3 +351,77 @@ h2 {
 .primary-button:hover {
   background: #2563eb;
 }
+
+.percussion-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.secondary-button {
+  padding: 8px 12px;
+  border: 1px solid #52525b;
+  border-radius: 10px;
+  background: #18181b;
+  color: #f4f4f5;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  background: #3f3f46;
+}
+
+.percussion-table-wrap {
+  overflow: auto;
+  border: 1px solid #3f3f46;
+  border-radius: 12px;
+  background: #18181b;
+}
+
+.percussion-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.percussion-table th,
+.percussion-table td {
+  padding: 10px;
+  border-bottom: 1px solid #3f3f46;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.percussion-table th {
+  color: #d4d4d8;
+  font-size: 0.9rem;
+  background: #27272a;
+}
+
+.percussion-table td {
+  color: #e4e4e7;
+}
+
+.percussion-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.percussion-block-input {
+  width: 100%;
+  min-width: 220px;
+  padding: 7px 8px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: #0f0f12;
+  color: #f4f4f5;
+}
+
+.percussion-note-input {
+  width: 80px;
+  padding: 7px 8px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: #0f0f12;
+  color: #f4f4f5;
+}
