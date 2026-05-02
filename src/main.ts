@@ -74,7 +74,7 @@ const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   repeaterBaseBlockId: "minecraft:white_concrete",
 };
 
-const DEFAULT_NORMAL_BLOCK = "minecraft:grass_block";
+const DEFAULT_NORMAL_BLOCK = "minecraft:air";
 const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block";
 const DEFAULT_LOW_OVERFLOW_BLOCK = "minecraft:diamond_ore";
 
