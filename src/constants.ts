@@ -1,0 +1,136 @@
+import type { ExportSettings, PercussionPreset } from "./types";
+
+export const DEFAULT_BASE_MIDI = 66; // F#4
+
+export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
+  litematicVersion: 7,
+  blocksPerQuarterNote: 4,
+  repeaterBaseBlockId: "minecraft:white_concrete",
+};
+
+export const DEFAULT_NORMAL_BLOCK = "minecraft:air";
+export const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block";
+export const DEFAULT_LOW_OVERFLOW_BLOCK = "minecraft:diamond_ore";
+
+export const TRACK_COLORS = [
+  "#7dd3fc",
+  "#86efac",
+  "#fde047",
+  "#f0abfc",
+  "#93c5fd",
+  "#fdba74",
+  "#c4b5fd",
+  "#fca5a5",
+  "#67e8f9",
+  "#bef264",
+  "#f9a8d4",
+  "#a7f3d0",
+];
+
+export const DEFAULT_PERCUSSION_BLOCK = "minecraft:stone";
+export const DEFAULT_PERCUSSION_NOTE = 0;
+
+export const GM_PERCUSSION_NAMES: Record<number, string> = {
+  35: "Acoustic Bass Drum",
+  36: "Bass Drum 1",
+  37: "Side Stick",
+  38: "Acoustic Snare",
+  39: "Hand Clap",
+  40: "Electric Snare",
+  41: "Low Floor Tom",
+  42: "Closed Hi-Hat",
+  43: "High Floor Tom",
+  44: "Pedal Hi-Hat",
+  45: "Low Tom",
+  46: "Open Hi-Hat",
+  47: "Low-Mid Tom",
+  48: "Hi-Mid Tom",
+  49: "Crash Cymbal 1",
+  50: "High Tom",
+  51: "Ride Cymbal 1",
+  52: "Chinese Cymbal",
+  53: "Ride Bell",
+  54: "Tambourine",
+  55: "Splash Cymbal",
+  56: "Cowbell",
+  57: "Crash Cymbal 2",
+  58: "Vibraslap",
+  59: "Ride Cymbal 2",
+  60: "Hi Bongo",
+  61: "Low Bongo",
+  62: "Mute Hi Conga",
+  63: "Open Hi Conga",
+  64: "Low Conga",
+  65: "High Timbale",
+  66: "Low Timbale",
+  67: "High Agogo",
+  68: "Low Agogo",
+  69: "Cabasa",
+  70: "Maracas",
+  71: "Short Whistle",
+  72: "Long Whistle",
+  73: "Short Guiro",
+  74: "Long Guiro",
+  75: "Claves",
+  76: "Hi Wood Block",
+  77: "Low Wood Block",
+  78: "Mute Cuica",
+  79: "Open Cuica",
+  80: "Mute Triangle",
+  81: "Open Triangle",
+};
+
+export const PERCUSSION_PRESETS = {
+  genericMinecraft: {
+    label: "Generic Minecraft Percussion",
+    mappings: {
+      35: { blockId: "minecraft:stone", note: 0 },
+      36: { blockId: "minecraft:stone", note: 0 },
+      37: { blockId: "minecraft:sand", note: 4 },
+      38: { blockId: "minecraft:sand", note: 6 },
+      39: { blockId: "minecraft:sand", note: 8 },
+      40: { blockId: "minecraft:sand", note: 10 },
+      41: { blockId: "minecraft:clay", note: 3 },
+      43: { blockId: "minecraft:clay", note: 5 },
+      45: { blockId: "minecraft:clay", note: 7 },
+      47: { blockId: "minecraft:clay", note: 9 },
+      48: { blockId: "minecraft:clay", note: 11 },
+      50: { blockId: "minecraft:clay", note: 13 },
+      42: { blockId: "minecraft:glass", note: 16 },
+      44: { blockId: "minecraft:glass", note: 18 },
+      46: { blockId: "minecraft:glass", note: 20 },
+      49: { blockId: "minecraft:gold_block", note: 18 },
+      51: { blockId: "minecraft:gold_block", note: 16 },
+      52: { blockId: "minecraft:gold_block", note: 20 },
+      53: { blockId: "minecraft:gold_block", note: 22 },
+      55: { blockId: "minecraft:gold_block", note: 21 },
+      57: { blockId: "minecraft:gold_block", note: 19 },
+      59: { blockId: "minecraft:gold_block", note: 17 },
+      54: { blockId: "minecraft:glass", note: 12 },
+      56: { blockId: "minecraft:iron_block", note: 18 },
+      58: { blockId: "minecraft:iron_block", note: 12 },
+      69: { blockId: "minecraft:glass", note: 10 },
+      70: { blockId: "minecraft:glass", note: 8 },
+      75: { blockId: "minecraft:wood", note: 12 },
+      76: { blockId: "minecraft:wood", note: 14 },
+      77: { blockId: "minecraft:wood", note: 10 },
+      60: { blockId: "minecraft:wood", note: 16 },
+      61: { blockId: "minecraft:wood", note: 12 },
+      62: { blockId: "minecraft:wood", note: 14 },
+      63: { blockId: "minecraft:wood", note: 16 },
+      64: { blockId: "minecraft:wood", note: 10 },
+      65: { blockId: "minecraft:clay", note: 16 },
+      66: { blockId: "minecraft:clay", note: 12 },
+      67: { blockId: "minecraft:gold_block", note: 14 },
+      68: { blockId: "minecraft:gold_block", note: 10 },
+      71: { blockId: "minecraft:glass", note: 22 },
+      72: { blockId: "minecraft:glass", note: 20 },
+      73: { blockId: "minecraft:glass", note: 14 },
+      74: { blockId: "minecraft:glass", note: 16 },
+      80: { blockId: "minecraft:iron_block", note: 20 },
+      81: { blockId: "minecraft:iron_block", note: 22 },
+    },
+  },
+} satisfies Record<string, PercussionPreset>;
+
+export type PercussionPresetId = keyof typeof PERCUSSION_PRESETS;
