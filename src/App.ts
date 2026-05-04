@@ -314,18 +314,38 @@ export class App {
           (note.ticks / this.currentPpq) *
             this.exportSettings.blocksPerQuarterNote *
             pxPerBlock;
-        const noteWidth = Math.max(
-          4,
-          (note.durationTicks / this.currentPpq) *
-            this.exportSettings.blocksPerQuarterNote *
-            pxPerBlock,
-        );
         const y = topPad + (maxMidi - note.midi) * rowHeight;
         const isSelected = this.selectedTrackIndex === track.trackIndex;
         const opacity =
           this.selectedTrackIndex === null || isSelected ? "0.95" : "0.25";
         const stroke = isSelected ? "#ffffff" : "#27272a";
         const color = getTrackColor(track.trackIndex);
+        const noteHeight = Math.max(4, rowHeight - 2);
+
+        if (track.isPercussion) {
+          const radius = noteHeight / 2;
+
+          return `
+            <circle
+              class="piano-note"
+              data-track-index="${track.trackIndex}"
+              cx="${(x + radius).toFixed(2)}"
+              cy="${(y + radius).toFixed(2)}"
+              r="${radius.toFixed(2)}"
+              fill="${color}"
+              opacity="${opacity}"
+              stroke="${stroke}"
+              stroke-width="${isSelected ? 1.5 : 0.5}"
+            />
+          `;
+        }
+
+        const noteWidth = Math.max(
+          4,
+          (note.durationTicks / this.currentPpq) *
+            this.exportSettings.blocksPerQuarterNote *
+            pxPerBlock,
+        );
 
         return `
           <rect
@@ -334,7 +354,7 @@ export class App {
             x="${x.toFixed(2)}"
             y="${y.toFixed(2)}"
             width="${noteWidth.toFixed(2)}"
-            height="${Math.max(4, rowHeight - 2)}"
+            height="${noteHeight}"
             rx="2"
             fill="${color}"
             opacity="${opacity}"
