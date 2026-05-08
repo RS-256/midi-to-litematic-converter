@@ -57,6 +57,7 @@ export class App {
   private currentPpq = 480;
   private currentMidiMeta: MidiMeta = {};
   private isLoadingMidi = false;
+  private isUpdatingExportSettings = false;
   private pianoRollZoom = 1;
   private readonly root: HTMLDivElement;
   private readonly elements: AppElements;
@@ -134,7 +135,9 @@ export class App {
         litematicVersion: version,
       };
 
-      this.renderPlacementPreview();
+      void this.renderAfterExportSettingsChange(() => {
+        this.renderPlacementPreview();
+      });
     });
 
     this.elements.blocksPerQuarterInput.addEventListener("change", () => {
@@ -152,7 +155,9 @@ export class App {
         blocksPerQuarterNote: Math.round(value),
       };
 
-      this.renderAll();
+      void this.renderAfterExportSettingsChange(() => {
+        this.renderAll();
+      });
     });
 
     this.elements.startMeasureOffsetInput.addEventListener("change", () => {
@@ -173,7 +178,9 @@ export class App {
         this.exportSettings.startMeasureOffset,
       );
 
-      this.renderAll();
+      void this.renderAfterExportSettingsChange(() => {
+        this.renderAll();
+      });
     });
 
     this.elements.repeaterBaseBlockInput.addEventListener("change", () => {
@@ -190,7 +197,9 @@ export class App {
         repeaterBaseBlockId: blockId,
       };
 
-      this.renderAll();
+      void this.renderAfterExportSettingsChange(() => {
+        this.renderAll();
+      });
     });
 
     this.elements.pianoRollZoomInput.addEventListener("input", () => {
@@ -204,6 +213,17 @@ export class App {
     this.elements.downloadLitematicButton.addEventListener("click", () => {
       this.downloadLitematic();
     });
+  }
+
+  private async renderAfterExportSettingsChange(render: () => void): Promise<void> {
+    this.setExportSettingsUpdating(true);
+    await this.waitForPaint();
+
+    try {
+      render();
+    } finally {
+      this.setExportSettingsUpdating(false);
+    }
   }
 
   private async loadSelectedMidi(): Promise<void> {
@@ -254,7 +274,7 @@ export class App {
   private setMidiLoading(file: File | null): void {
     this.isLoadingMidi = file !== null;
     this.elements.fileInput.disabled = this.isLoadingMidi;
-    this.elements.downloadLitematicButton.disabled = this.isLoadingMidi;
+    this.updateDownloadButtonDisabled();
 
     if (!file) {
       return;
@@ -294,6 +314,16 @@ export class App {
         <span>Loading MIDI file...</span>
       </div>
     `;
+  }
+
+  private setExportSettingsUpdating(isUpdating: boolean): void {
+    this.isUpdatingExportSettings = isUpdating;
+    this.updateDownloadButtonDisabled();
+  }
+
+  private updateDownloadButtonDisabled(): void {
+    this.elements.downloadLitematicButton.disabled =
+      this.isLoadingMidi || this.isUpdatingExportSettings;
   }
 
   private renderSelectedFileInfo(file: File, status?: string): void {
