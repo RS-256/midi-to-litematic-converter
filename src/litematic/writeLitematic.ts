@@ -1,4 +1,5 @@
 import { gzip } from "pako";
+import type { LitematicVersion } from "../types";
 import {
   NbtTagId,
   writeNamedRootCompound,
@@ -18,10 +19,11 @@ export type LitematicRegionInput = {
   placements: BlockPlacement[];
 };
 
-export type LitematicV7Input = {
+export type LitematicInput = {
   name: string;
   author: string;
   description: string;
+  litematicVersion: LitematicVersion;
   minecraftDataVersion: number;
   regions: LitematicRegionInput[];
 };
@@ -47,7 +49,7 @@ type BlockState = {
   properties?: Record<string, string>;
 };
 
-export function writeLitematicV7(input: LitematicV7Input): Uint8Array {
+export function writeLitematic(input: LitematicInput): Uint8Array {
   const normalizedRegions = input.regions.map(normalizeRegion);
 
   const now = BigInt(Date.now());
@@ -119,7 +121,7 @@ export function writeLitematicV7(input: LitematicV7Input): Uint8Array {
     },
     Version: {
       type: "int",
-      value: 7,
+      value: input.litematicVersion,
     },
     MinecraftDataVersion: {
       type: "int",

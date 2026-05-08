@@ -44,8 +44,9 @@ export function renderAppShell(): string {
           <div class="settings-grid">
             <label>
               Litematic version:
-              <select id="litematic-version-select" class="setting-select" disabled>
+              <select id="litematic-version-select" class="setting-select">
                 <option value="7" selected>Version 7</option>
+                <option value="6">Version 6</option>
               </select>
             </label>
 

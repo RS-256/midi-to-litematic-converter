@@ -15,7 +15,7 @@ export type TrackData = {
   notes: RawNote[];
 };
 
-export type LitematicVersion = 7;
+export type LitematicVersion = 6 | 7;
 
 export type ExportSettings = {
   litematicVersion: LitematicVersion;

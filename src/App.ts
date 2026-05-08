@@ -1,4 +1,7 @@
-import { DEFAULT_EXPORT_SETTINGS } from "./constants";
+import {
+  DEFAULT_EXPORT_SETTINGS,
+  MINECRAFT_DATA_VERSION_BY_LITEMATIC_VERSION,
+} from "./constants";
 import { buildTrackPlacements } from "./domain/placements";
 import {
   applyPercussionPreset,
@@ -9,7 +12,7 @@ import {
   createDefaultPercussionMappings,
   createDefaultTrackSettings,
 } from "./domain/trackSettings";
-import { writeLitematicV7 } from "./litematic/writeLitematicV7";
+import { writeLitematic } from "./litematic/writeLitematic";
 import { parseMidiFile } from "./midi/parseMidi";
 import type {
   ExportSettings,
@@ -32,6 +35,7 @@ import { clampInteger, formatBytes, sanitizeRegionName } from "./utils/format";
 type AppElements = {
   fileInput: HTMLInputElement;
   fileInfo: HTMLDivElement;
+  litematicVersionSelect: HTMLSelectElement;
   blocksPerQuarterInput: HTMLInputElement;
   startMeasureOffsetInput: HTMLInputElement;
   repeaterBaseBlockInput: HTMLInputElement;
@@ -68,6 +72,10 @@ export class App {
     return {
       fileInput: getElement<HTMLInputElement>("#midi-file", this.root),
       fileInfo: getElement<HTMLDivElement>("#file-info", this.root),
+      litematicVersionSelect: getElement<HTMLSelectElement>(
+        "#litematic-version-select",
+        this.root,
+      ),
       blocksPerQuarterInput: getElement<HTMLInputElement>(
         "#blocks-per-quarter-input",
         this.root,
@@ -109,6 +117,24 @@ export class App {
   private bindGlobalEvents(): void {
     this.elements.fileInput.addEventListener("change", () => {
       void this.loadSelectedMidi();
+    });
+
+    this.elements.litematicVersionSelect.addEventListener("change", () => {
+      const version = Number(this.elements.litematicVersionSelect.value);
+
+      if (version !== 6 && version !== 7) {
+        this.elements.litematicVersionSelect.value = String(
+          this.exportSettings.litematicVersion,
+        );
+        return;
+      }
+
+      this.exportSettings = {
+        ...this.exportSettings,
+        litematicVersion: version,
+      };
+
+      this.renderPlacementPreview();
     });
 
     this.elements.blocksPerQuarterInput.addEventListener("change", () => {
@@ -719,11 +745,15 @@ export class App {
       return;
     }
 
-    const bytes = writeLitematicV7({
+    const bytes = writeLitematic({
       name: "noteblock_export",
       author: "Noteblock Litematic Generator",
       description: "Generated from MIDI",
-      minecraftDataVersion: 4671,
+      litematicVersion: this.exportSettings.litematicVersion,
+      minecraftDataVersion:
+        MINECRAFT_DATA_VERSION_BY_LITEMATIC_VERSION[
+          this.exportSettings.litematicVersion
+        ],
       regions: this.buildExportRegions(),
     });
 

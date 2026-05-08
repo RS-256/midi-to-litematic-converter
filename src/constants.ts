@@ -1,4 +1,4 @@
-import type { ExportSettings, PercussionPreset } from "./types";
+import type { ExportSettings, LitematicVersion, PercussionPreset } from "./types";
 
 export const DEFAULT_BASE_MIDI = 66; // F#4
 
@@ -8,6 +8,11 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   startMeasureOffset: 0,
   repeaterBaseBlockId: "minecraft:white_concrete",
 };
+
+export const MINECRAFT_DATA_VERSION_BY_LITEMATIC_VERSION = {
+  6: 3465,
+  7: 4671,
+} satisfies Record<LitematicVersion, number>;
 
 export const DEFAULT_NORMAL_BLOCK = "minecraft:air";
 export const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block";
