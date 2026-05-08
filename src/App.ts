@@ -28,6 +28,8 @@ type AppElements = {
   fileInfo: HTMLDivElement;
   blocksPerQuarterInput: HTMLInputElement;
   repeaterBaseBlockInput: HTMLInputElement;
+  pianoRollZoomInput: HTMLInputElement;
+  pianoRollZoomValue: HTMLSpanElement;
   midiSummary: HTMLDivElement;
   trackList: HTMLDivElement;
   pianoRoll: HTMLDivElement;
@@ -43,6 +45,7 @@ export class App {
   private selectedTrackIndex: number | null = null;
   private currentPpq = 480;
   private isLoadingMidi = false;
+  private pianoRollZoom = 1;
   private readonly root: HTMLDivElement;
   private readonly elements: AppElements;
 
@@ -63,6 +66,14 @@ export class App {
       ),
       repeaterBaseBlockInput: getElement<HTMLInputElement>(
         "#repeater-base-block-input",
+        this.root,
+      ),
+      pianoRollZoomInput: getElement<HTMLInputElement>(
+        "#piano-roll-zoom-input",
+        this.root,
+      ),
+      pianoRollZoomValue: getElement<HTMLSpanElement>(
+        "#piano-roll-zoom-value",
         this.root,
       ),
       midiSummary: getElement<HTMLDivElement>("#midi-summary", this.root),
@@ -121,6 +132,14 @@ export class App {
       };
 
       this.renderAll();
+    });
+
+    this.elements.pianoRollZoomInput.addEventListener("input", () => {
+      const value = Number(this.elements.pianoRollZoomInput.value);
+      this.pianoRollZoom = Math.min(4, Math.max(0.25, value));
+      this.elements.pianoRollZoomValue.textContent =
+        `${Math.round(this.pianoRollZoom * 100)}%`;
+      this.renderPianoRoll();
     });
 
     this.elements.downloadLitematicButton.addEventListener("click", () => {
@@ -336,7 +355,7 @@ export class App {
     const leftPad = 64;
     const topPad = 24;
     const rowHeight = 10;
-    const pxPerBlock = 18;
+    const pxPerBlock = 8 * this.pianoRollZoom;
     const rightPad = 80;
     const bottomPad = 24;
     const minMidi = Math.max(

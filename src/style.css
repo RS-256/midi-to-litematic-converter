@@ -232,6 +232,34 @@ h2 {
   border: 1px solid #334155;
 }
 
+.piano-roll-header {
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.piano-roll-header h2 {
+  margin-bottom: 0;
+}
+
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d4d4d8;
+  font-weight: 700;
+}
+
+.zoom-control input {
+  width: 180px;
+  cursor: pointer;
+}
+
+.zoom-value {
+  min-width: 44px;
+  color: #a1a1aa;
+  text-align: right;
+}
+
 .piano-roll.empty {
   padding: 18px;
   color: #a1a1aa;

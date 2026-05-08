@@ -96,7 +96,21 @@ export function renderAppShell(): string {
 
         <section class="main-panel">
           <section class="card">
-            <h2>Piano Roll</h2>
+            <div class="section-header piano-roll-header">
+              <h2>Piano Roll</h2>
+              <label class="zoom-control">
+                <span>Zoom</span>
+                <input
+                  id="piano-roll-zoom-input"
+                  type="range"
+                  min="0.25"
+                  max="4"
+                  step="0.05"
+                  value="1"
+                />
+                <span id="piano-roll-zoom-value" class="zoom-value">100%</span>
+              </label>
+            </div>
             <div id="piano-roll" class="piano-roll empty">
               No MIDI data loaded.
             </div>
