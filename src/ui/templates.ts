@@ -39,8 +39,14 @@ export function renderAppShell(): string {
         </section>
 
         <section class="card top-card">
-          <h2>Export Settings</h2>
+          <h2>MIDI Summary</h2>
+          <div id="midi-summary" class="midi-summary">
+            No MIDI data loaded.
+          </div>
+        </section>
 
+        <section class="card top-card">
+          <h2>Export Settings</h2>
           <div class="settings-grid">
             <label>
               Litematic version:
@@ -88,13 +94,10 @@ export function renderAppShell(): string {
               The builder uses twice this value internally so note durations align with repeater timing.
               Litematic v7 only for now.
             </p>
-          </div>
-        </section>
 
-        <section class="card top-card">
-          <h2>MIDI Summary</h2>
-          <div id="midi-summary" class="midi-summary">
-            No MIDI data loaded.
+            <button id="download-litematic-button" class="primary-button" type="button">
+              Download .litematic
+            </button>
           </div>
         </section>
       </section>
@@ -137,12 +140,7 @@ export function renderAppShell(): string {
           </section>
 
           <section class="card">
-            <div class="section-header">
-              <h2>Placement Preview</h2>
-              <button id="download-litematic-button" class="primary-button" type="button">
-                Download .litematic
-              </button>
-            </div>
+            <h2>Placement Preview</h2>
 
             <pre id="placement-preview" class="placement-preview">No placement data.</pre>
           </section>
