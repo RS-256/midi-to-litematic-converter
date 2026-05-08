@@ -309,9 +309,6 @@ export class App {
     const firstTimeSignature = timeSignatures[0];
 
     this.elements.midiSummary.innerHTML = `
-      <strong>Litematic version:</strong> ${this.exportSettings.litematicVersion}<br />
-      <strong>Blocks per quarter note:</strong> ${this.exportSettings.blocksPerQuarterNote}<br />
-      <strong>Initial measures skipped:</strong> ${this.exportSettings.startMeasureOffset}<br />
       <strong>Tracks:</strong> ${this.loadedTracks.length}<br />
       <strong>Export tracks:</strong> ${exportTracks.length}<br />
       <strong>PPQ:</strong> ${this.currentPpq}<br />
@@ -328,7 +325,6 @@ export class App {
       }<br />
       <strong>First time signature:</strong> ${firstTimeSignature.numerator}/${firstTimeSignature.denominator}<br />
       <strong>Total notes:</strong> ${totalNotes}<br />
-      <strong>Repeater base block:</strong> ${escapeHtml(this.exportSettings.repeaterBaseBlockId)}<br />
     `;
   }
 
