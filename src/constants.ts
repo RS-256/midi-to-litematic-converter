@@ -4,7 +4,7 @@ export const DEFAULT_BASE_MIDI = 66; // F#4
 
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   litematicVersion: 7,
-  blocksPerQuarterNote: 4,
+  blocksPerQuarterNote: 8,
   repeaterBaseBlockId: "minecraft:white_concrete",
 };
 
@@ -56,26 +56,8 @@ export const GM_PERCUSSION_NAMES: Record<number, string> = {
   57: "Crash Cymbal 2",
   58: "Vibraslap",
   59: "Ride Cymbal 2",
-  60: "Hi Bongo",
-  61: "Low Bongo",
-  62: "Mute Hi Conga",
-  63: "Open Hi Conga",
-  64: "Low Conga",
-  65: "High Timbale",
-  66: "Low Timbale",
-  67: "High Agogo",
-  68: "Low Agogo",
-  69: "Cabasa",
-  70: "Maracas",
-  71: "Short Whistle",
-  72: "Long Whistle",
-  73: "Short Guiro",
-  74: "Long Guiro",
-  75: "Claves",
   76: "Hi Wood Block",
   77: "Low Wood Block",
-  78: "Mute Cuica",
-  79: "Open Cuica",
   80: "Mute Triangle",
   81: "Open Triangle",
 };

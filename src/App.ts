@@ -42,6 +42,7 @@ export class App {
   private exportSettings: ExportSettings = { ...DEFAULT_EXPORT_SETTINGS };
   private selectedTrackIndex: number | null = null;
   private currentPpq = 480;
+  private isLoadingMidi = false;
   private readonly root: HTMLDivElement;
   private readonly elements: AppElements;
 
@@ -135,12 +136,9 @@ export class App {
       return;
     }
 
-    this.elements.fileInfo.innerHTML = `
-      <strong>Selected file:</strong><br />
-      Name: ${escapeHtml(file.name)}<br />
-      Size: ${formatBytes(file.size)}<br />
-      Type: ${escapeHtml(file.type || "unknown")}
-    `;
+    this.setMidiLoading(file);
+
+    await this.waitForPaint();
 
     try {
       const parsed = parseMidiFile(await file.arrayBuffer());
@@ -154,19 +152,81 @@ export class App {
         null;
 
       this.renderAll(parsed.meta);
+      this.renderSelectedFileInfo(file);
     } catch (error) {
       console.error(error);
       this.loadedTracks = [];
       this.trackSettingsMap.clear();
       this.selectedTrackIndex = null;
 
+      this.renderSelectedFileInfo(file, "Failed to parse MIDI file.");
       this.elements.midiSummary.textContent = "Failed to parse MIDI file.";
       this.elements.trackList.textContent = "No tracks loaded.";
       this.elements.pianoRoll.textContent =
         error instanceof Error ? error.message : String(error);
       this.elements.selectedTrackSettings.textContent = "No track selected.";
       this.elements.placementPreview.textContent = "No placement data.";
+    } finally {
+      this.setMidiLoading(null);
     }
+  }
+
+  private setMidiLoading(file: File | null): void {
+    this.isLoadingMidi = file !== null;
+    this.elements.fileInput.disabled = this.isLoadingMidi;
+    this.elements.downloadLitematicButton.disabled = this.isLoadingMidi;
+
+    if (!file) {
+      return;
+    }
+
+    this.elements.fileInfo.innerHTML = `
+      <div class="loading-status" role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span>
+          <strong>Loading MIDI file...</strong><br />
+          Name: ${escapeHtml(file.name)}<br />
+          Size: ${formatBytes(file.size)}<br />
+          Type: ${escapeHtml(file.type || "unknown")}
+        </span>
+      </div>
+    `;
+    this.elements.midiSummary.innerHTML = this.renderLoadingMessage();
+    this.elements.trackList.innerHTML = this.renderLoadingMessage();
+    this.elements.pianoRoll.className = "piano-roll empty";
+    this.elements.pianoRoll.innerHTML = this.renderLoadingMessage();
+    this.elements.selectedTrackSettings.innerHTML = this.renderLoadingMessage();
+    this.elements.placementPreview.textContent = "Loading MIDI file...";
+  }
+
+  private waitForPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
+  private renderLoadingMessage(): string {
+    return `
+      <div class="loading-status" role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span>Loading MIDI file...</span>
+      </div>
+    `;
+  }
+
+  private renderSelectedFileInfo(file: File, status?: string): void {
+    const statusMarkup = status
+      ? `<strong>${escapeHtml(status)}</strong><br />`
+      : `<strong>Selected file:</strong><br />`;
+
+    this.elements.fileInfo.innerHTML = `
+      ${statusMarkup}
+      Name: ${escapeHtml(file.name)}<br />
+      Size: ${formatBytes(file.size)}<br />
+      Type: ${escapeHtml(file.type || "unknown")}
+    `;
   }
 
   private renderAll(midiMeta: MidiMeta = {}): void {
