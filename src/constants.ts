@@ -5,6 +5,7 @@ export const DEFAULT_BASE_MIDI = 66; // F#4
 export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   litematicVersion: 7,
   blocksPerQuarterNote: 8,
+  startMeasureOffset: 0,
   repeaterBaseBlockId: "minecraft:white_concrete",
 };
 

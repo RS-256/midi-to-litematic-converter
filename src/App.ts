@@ -11,7 +11,13 @@ import {
 } from "./domain/trackSettings";
 import { writeLitematicV7 } from "./litematic/writeLitematicV7";
 import { parseMidiFile } from "./midi/parseMidi";
-import type { ExportSettings, MidiMeta, TrackData, TrackSettings } from "./types";
+import type {
+  ExportSettings,
+  MidiMeta,
+  MidiTimeSignature,
+  TrackData,
+  TrackSettings,
+} from "./types";
 import {
   getTrackColor,
   renderAppShell,
@@ -27,6 +33,7 @@ type AppElements = {
   fileInput: HTMLInputElement;
   fileInfo: HTMLDivElement;
   blocksPerQuarterInput: HTMLInputElement;
+  startMeasureOffsetInput: HTMLInputElement;
   repeaterBaseBlockInput: HTMLInputElement;
   pianoRollZoomInput: HTMLInputElement;
   pianoRollZoomValue: HTMLSpanElement;
@@ -44,6 +51,7 @@ export class App {
   private exportSettings: ExportSettings = { ...DEFAULT_EXPORT_SETTINGS };
   private selectedTrackIndex: number | null = null;
   private currentPpq = 480;
+  private currentMidiMeta: MidiMeta = {};
   private isLoadingMidi = false;
   private pianoRollZoom = 1;
   private readonly root: HTMLDivElement;
@@ -62,6 +70,10 @@ export class App {
       fileInfo: getElement<HTMLDivElement>("#file-info", this.root),
       blocksPerQuarterInput: getElement<HTMLInputElement>(
         "#blocks-per-quarter-input",
+        this.root,
+      ),
+      startMeasureOffsetInput: getElement<HTMLInputElement>(
+        "#start-measure-offset-input",
         this.root,
       ),
       repeaterBaseBlockInput: getElement<HTMLInputElement>(
@@ -117,6 +129,27 @@ export class App {
       this.renderAll();
     });
 
+    this.elements.startMeasureOffsetInput.addEventListener("change", () => {
+      const value = Number(this.elements.startMeasureOffsetInput.value);
+
+      if (!Number.isFinite(value) || value < 0) {
+        this.elements.startMeasureOffsetInput.value = String(
+          this.exportSettings.startMeasureOffset,
+        );
+        return;
+      }
+
+      this.exportSettings = {
+        ...this.exportSettings,
+        startMeasureOffset: Math.round(value),
+      };
+      this.elements.startMeasureOffsetInput.value = String(
+        this.exportSettings.startMeasureOffset,
+      );
+
+      this.renderAll();
+    });
+
     this.elements.repeaterBaseBlockInput.addEventListener("change", () => {
       const blockId = this.elements.repeaterBaseBlockInput.value.trim();
 
@@ -163,6 +196,7 @@ export class App {
       const parsed = parseMidiFile(await file.arrayBuffer());
 
       this.currentPpq = parsed.ppq;
+      this.currentMidiMeta = parsed.meta;
       this.loadedTracks = parsed.tracks;
       this.trackSettingsMap = createDefaultTrackSettings(this.loadedTracks);
       this.selectedTrackIndex =
@@ -170,11 +204,12 @@ export class App {
         this.loadedTracks[0]?.trackIndex ??
         null;
 
-      this.renderAll(parsed.meta);
+      this.renderAll();
       this.renderSelectedFileInfo(file);
     } catch (error) {
       console.error(error);
       this.loadedTracks = [];
+      this.currentMidiMeta = {};
       this.trackSettingsMap.clear();
       this.selectedTrackIndex = null;
 
@@ -248,15 +283,15 @@ export class App {
     `;
   }
 
-  private renderAll(midiMeta: MidiMeta = {}): void {
-    this.renderMidiSummary(midiMeta);
+  private renderAll(): void {
+    this.renderMidiSummary();
     this.renderTrackList();
     this.renderPianoRoll();
     this.renderSelectedTrackSettings();
     this.renderPlacementPreview();
   }
 
-  private renderMidiSummary(midiMeta: MidiMeta = {}): void {
+  private renderMidiSummary(): void {
     if (this.loadedTracks.length === 0) {
       this.elements.midiSummary.textContent = "No MIDI data loaded.";
       return;
@@ -270,19 +305,28 @@ export class App {
     const exportTracks = this.loadedTracks.filter((track) => {
       return this.trackSettingsMap.get(track.trackIndex)?.exportEnabled;
     });
+    const timeSignatures = this.getTimeSignatures();
+    const firstTimeSignature = timeSignatures[0];
 
     this.elements.midiSummary.innerHTML = `
       <strong>Litematic version:</strong> ${this.exportSettings.litematicVersion}<br />
       <strong>Blocks per quarter note:</strong> ${this.exportSettings.blocksPerQuarterNote}<br />
+      <strong>Initial measures skipped:</strong> ${this.exportSettings.startMeasureOffset}<br />
       <strong>Tracks:</strong> ${this.loadedTracks.length}<br />
       <strong>Export tracks:</strong> ${exportTracks.length}<br />
       <strong>PPQ:</strong> ${this.currentPpq}<br />
-      <strong>Tempos:</strong> ${midiMeta.temposCount ?? "loaded"}<br />
+      <strong>Tempos:</strong> ${this.currentMidiMeta.temposCount ?? "loaded"}<br />
       <strong>First tempo:</strong> ${
-        midiMeta.firstTempoBpm
-          ? `${midiMeta.firstTempoBpm.toFixed(2)} BPM`
+        this.currentMidiMeta.firstTempoBpm
+          ? `${this.currentMidiMeta.firstTempoBpm.toFixed(2)} BPM`
           : "unknown / unchanged"
       }<br />
+      <strong>Time signatures:</strong> ${
+        this.currentMidiMeta.timeSignatures?.length
+          ? this.currentMidiMeta.timeSignatures.length
+          : "default 4/4"
+      }<br />
+      <strong>First time signature:</strong> ${firstTimeSignature.numerator}/${firstTimeSignature.denominator}<br />
       <strong>Total notes:</strong> ${totalNotes}<br />
       <strong>Repeater base block:</strong> ${escapeHtml(this.exportSettings.repeaterBaseBlockId)}<br />
     `;
@@ -340,8 +384,14 @@ export class App {
     const visibleTracks = this.loadedTracks.filter((track) => {
       return this.getTrackSettings(track.trackIndex).visible;
     });
+    const skippedTicks = this.getStartOffsetTicks();
+    const pianoRollTickOffset = skippedTicks;
     const visibleNotes = visibleTracks.flatMap((track) =>
-      track.notes.map((note) => ({ track, note })),
+      track.notes
+        .filter((note) => {
+          return note.ticks + note.durationTicks > skippedTicks;
+        })
+        .map((note) => ({ track, note })),
     );
 
     if (visibleNotes.length === 0) {
@@ -369,7 +419,9 @@ export class App {
     const maxTick = Math.max(
       ...visibleNotes.map(({ note }) => note.ticks + note.durationTicks),
     );
-    const maxQuarter = Math.ceil(maxTick / this.currentPpq) + 1;
+    const visibleMaxTick = Math.max(0, maxTick - pianoRollTickOffset);
+    const maxQuarter = Math.ceil(visibleMaxTick / this.currentPpq) + 1;
+    const gridEndTicks = maxQuarter * this.currentPpq;
     const width =
       leftPad +
       maxQuarter * this.exportSettings.blocksPerQuarterNote * pxPerBlock +
@@ -382,15 +434,22 @@ export class App {
       pxPerBlock,
       minMidi,
       maxMidi,
-      maxQuarter,
       height,
+      verticalLines: this.getPianoRollVerticalLines(
+        pianoRollTickOffset,
+        gridEndTicks,
+      ),
       blocksPerQuarterNote: this.exportSettings.blocksPerQuarterNote,
     });
     const notesSvg = visibleNotes
       .map(({ track, note }) => {
+        const adjustedTicks = note.ticks - pianoRollTickOffset;
+        const adjustedEndTicks = adjustedTicks + note.durationTicks;
+        const visibleStartTicks = Math.max(0, adjustedTicks);
+        const visibleDurationTicks = adjustedEndTicks - visibleStartTicks;
         const x =
           leftPad +
-          (note.ticks / this.currentPpq) *
+          (visibleStartTicks / this.currentPpq) *
             this.exportSettings.blocksPerQuarterNote *
             pxPerBlock;
         const y = topPad + (maxMidi - note.midi) * rowHeight;
@@ -421,7 +480,7 @@ export class App {
 
         const noteWidth = Math.max(
           4,
-          (note.durationTicks / this.currentPpq) *
+          (visibleDurationTicks / this.currentPpq) *
             this.exportSettings.blocksPerQuarterNote *
             pxPerBlock,
         );
@@ -688,6 +747,7 @@ export class App {
           this.exportSettings,
           this.currentPpq,
           trackYOffset,
+          this.getStartOffsetTicks(),
         ),
       };
     });
@@ -709,8 +769,133 @@ export class App {
     return settings;
   }
 
+  private getStartOffsetTicks(): number {
+    return this.getMeasureStartTick(this.exportSettings.startMeasureOffset);
+  }
+
+  private getMeasureStartTick(measureIndex: number): number {
+    if (measureIndex <= 0) {
+      return 0;
+    }
+
+    const measureLines = this.getMeasureLineTicks(Number.POSITIVE_INFINITY);
+    return measureLines[measureIndex] ?? measureIndex * this.currentPpq * 4;
+  }
+
+  private getPianoRollVerticalLines(
+    tickOffset: number,
+    visibleEndTicks: number,
+  ): { ticks: number; ppq: number; isMeasure: boolean }[] {
+    const sourceEndTick = tickOffset + visibleEndTicks;
+    const measureTicks = new Set(this.getMeasureLineTicks(sourceEndTick));
+    const beatTicks = this.getBeatLineTicks(sourceEndTick);
+    const allTicks = new Set([...measureTicks, ...beatTicks]);
+
+    return [...allTicks]
+      .filter((tick) => tick >= tickOffset && tick <= sourceEndTick)
+      .sort((a, b) => a - b)
+      .map((tick) => ({
+        ticks: tick - tickOffset,
+        ppq: this.currentPpq,
+        isMeasure: measureTicks.has(tick),
+      }));
+  }
+
+  private getMeasureLineTicks(endTick: number): number[] {
+    return this.getMeterLineTicks(endTick, "measure");
+  }
+
+  private getBeatLineTicks(endTick: number): number[] {
+    return this.getMeterLineTicks(endTick, "beat");
+  }
+
+  private getMeterLineTicks(
+    endTick: number,
+    lineType: "measure" | "beat",
+  ): number[] {
+    const timeSignatures = this.getTimeSignatures();
+    const lines: number[] = [];
+    const finiteEndTick = Number.isFinite(endTick)
+      ? endTick
+      : this.getMaxTrackEndTick() + this.currentPpq * 16;
+
+    for (let index = 0; index < timeSignatures.length; index++) {
+      const signature = timeSignatures[index];
+      const nextSignature = timeSignatures[index + 1];
+      const segmentEndTick = Math.min(
+        nextSignature?.ticks ?? finiteEndTick,
+        finiteEndTick,
+      );
+      const stepTicks =
+        lineType === "measure"
+          ? this.getMeasureLengthTicks(signature)
+          : this.getBeatLengthTicks(signature);
+
+      if (stepTicks <= 0) {
+        continue;
+      }
+
+      for (
+        let tick = signature.ticks;
+        tick <= segmentEndTick;
+        tick += stepTicks
+      ) {
+        lines.push(Math.round(tick));
+      }
+    }
+
+    return [...new Set(lines)].sort((a, b) => a - b);
+  }
+
+  private getMeasureLengthTicks(timeSignature: MidiTimeSignature): number {
+    return Math.round(
+      this.currentPpq *
+        timeSignature.numerator *
+        (4 / timeSignature.denominator),
+    );
+  }
+
+  private getBeatLengthTicks(timeSignature: MidiTimeSignature): number {
+    return Math.round(this.currentPpq * (4 / timeSignature.denominator));
+  }
+
+  private getTimeSignatures(): MidiTimeSignature[] {
+    const timeSignatures = (this.currentMidiMeta.timeSignatures ?? [])
+      .filter((timeSignature) => {
+        return (
+          timeSignature.numerator > 0 &&
+          timeSignature.denominator > 0 &&
+          Number.isFinite(timeSignature.ticks)
+        );
+      })
+      .sort((a, b) => a.ticks - b.ticks);
+
+    if (timeSignatures.length === 0 || timeSignatures[0].ticks > 0) {
+      return [
+        {
+          ticks: 0,
+          numerator: 4,
+          denominator: 4,
+        },
+        ...timeSignatures,
+      ];
+    }
+
+    return timeSignatures;
+  }
+
+  private getMaxTrackEndTick(): number {
+    return Math.max(
+      0,
+      ...this.loadedTracks.flatMap((track) =>
+        track.notes.map((note) => note.ticks + note.durationTicks),
+      ),
+    );
+  }
+
   private clearLoadedMidi(): void {
     this.loadedTracks = [];
+    this.currentMidiMeta = {};
     this.trackSettingsMap.clear();
     this.selectedTrackIndex = null;
 

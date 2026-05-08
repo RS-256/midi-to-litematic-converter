@@ -20,6 +20,7 @@ export type LitematicVersion = 7;
 export type ExportSettings = {
   litematicVersion: LitematicVersion;
   blocksPerQuarterNote: number;
+  startMeasureOffset: number;
   repeaterBaseBlockId: string;
 };
 
@@ -63,4 +64,11 @@ export type CorrectedPitch = {
 export type MidiMeta = {
   temposCount?: number;
   firstTempoBpm?: number;
+  timeSignatures?: MidiTimeSignature[];
+};
+
+export type MidiTimeSignature = {
+  ticks: number;
+  numerator: number;
+  denominator: number;
 };

@@ -9,6 +9,7 @@ export function buildTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
+  tickOffset = 0,
 ): BlockPlacement[] {
   if (track.isPercussion) {
     return buildPercussionTrackPlacements(
@@ -17,6 +18,7 @@ export function buildTrackPlacements(
       currentExportSettings,
       ppq,
       trackYOffset,
+      tickOffset,
     );
   }
 
@@ -26,6 +28,7 @@ export function buildTrackPlacements(
     currentExportSettings,
     ppq,
     trackYOffset,
+    tickOffset,
   );
 }
 
@@ -35,6 +38,7 @@ function buildNormalTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
+  tickOffset: number,
 ): BlockPlacement[] {
   const placements: BlockPlacement[] = [];
   const laneEndXList: number[] = [];
@@ -42,10 +46,22 @@ function buildNormalTrackPlacements(
     currentExportSettings.blocksPerQuarterNote * 2;
 
   for (const note of track.notes) {
-    const x = Math.round((note.ticks / ppq) * effectiveBlocksPerQuarterNote);
+    const adjustedTicks = note.ticks - tickOffset;
+    const adjustedEndTicks = adjustedTicks + note.durationTicks;
+
+    if (adjustedEndTicks <= 0) {
+      continue;
+    }
+
+    const x = Math.round(
+      (Math.max(0, adjustedTicks) / ppq) * effectiveBlocksPerQuarterNote,
+    );
     const noteLengthBlocks = Math.max(
       1,
-      Math.round((note.durationTicks / ppq) * effectiveBlocksPerQuarterNote),
+      Math.round(
+        ((adjustedEndTicks - Math.max(0, adjustedTicks)) / ppq) *
+          effectiveBlocksPerQuarterNote,
+      ),
     );
 
     const z = allocateLane(laneEndXList, x, noteLengthBlocks);
@@ -76,6 +92,7 @@ function buildPercussionTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
+  tickOffset: number,
 ): BlockPlacement[] {
   const placements: BlockPlacement[] = [];
   const laneEndXList: number[] = [];
@@ -91,10 +108,22 @@ function buildPercussionTrackPlacements(
       continue;
     }
 
-    const x = Math.round((note.ticks / ppq) * effectiveBlocksPerQuarterNote);
+    const adjustedTicks = note.ticks - tickOffset;
+    const adjustedEndTicks = adjustedTicks + note.durationTicks;
+
+    if (adjustedEndTicks <= 0) {
+      continue;
+    }
+
+    const x = Math.round(
+      (Math.max(0, adjustedTicks) / ppq) * effectiveBlocksPerQuarterNote,
+    );
     const noteLengthBlocks = Math.max(
       1,
-      Math.round((note.durationTicks / ppq) * effectiveBlocksPerQuarterNote),
+      Math.round(
+        ((adjustedEndTicks - Math.max(0, adjustedTicks)) / ppq) *
+          effectiveBlocksPerQuarterNote,
+      ),
     );
 
     const z = allocateLane(laneEndXList, x, noteLengthBlocks);

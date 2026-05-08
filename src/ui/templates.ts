@@ -62,6 +62,18 @@ export function renderAppShell(): string {
             </label>
 
             <label>
+              Initial measures to skip:
+              <input
+                id="start-measure-offset-input"
+                class="setting-input"
+                type="number"
+                min="0"
+                step="1"
+                value="0"
+              />
+            </label>
+
+            <label>
               Repeater base block:
               <input
                 id="repeater-base-block-input"
@@ -204,8 +216,8 @@ export function renderPianoGridHtml(args: {
   pxPerBlock: number;
   minMidi: number;
   maxMidi: number;
-  maxQuarter: number;
   height: number;
+  verticalLines: PianoRollVerticalLine[];
   blocksPerQuarterNote: number;
 }): string {
   const horizontalLines: string[] = [];
@@ -240,9 +252,10 @@ export function renderPianoGridHtml(args: {
 
   const verticalLines: string[] = [];
 
-  for (let quarter = 0; quarter <= args.maxQuarter; quarter++) {
-    const x = args.leftPad + quarter * args.blocksPerQuarterNote * args.pxPerBlock;
-    const isMeasure = quarter % 4 === 0;
+  for (const line of args.verticalLines) {
+    const x =
+      args.leftPad +
+      (line.ticks / line.ppq) * args.blocksPerQuarterNote * args.pxPerBlock;
 
     verticalLines.push(`
       <line
@@ -250,7 +263,7 @@ export function renderPianoGridHtml(args: {
         y1="0"
         x2="${x}"
         y2="${args.height}"
-        class="${isMeasure ? "beat-line measure" : "beat-line"}"
+        class="${line.isMeasure ? "beat-line measure" : "beat-line"}"
       />
     `);
   }
@@ -261,6 +274,12 @@ export function renderPianoGridHtml(args: {
     ${verticalLines.join("")}
   `;
 }
+
+export type PianoRollVerticalLine = {
+  ticks: number;
+  ppq: number;
+  isMeasure: boolean;
+};
 
 export function renderNormalTrackSettingsHtml(
   track: TrackData,

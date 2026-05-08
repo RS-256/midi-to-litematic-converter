@@ -37,6 +37,11 @@ export function parseMidiFile(arrayBuffer: ArrayBuffer): ParsedMidi {
     meta: {
       temposCount: tempos.length,
       firstTempoBpm: firstTempo?.bpm,
+      timeSignatures: midi.header.timeSignatures.map((timeSignature) => ({
+        ticks: timeSignature.ticks,
+        numerator: timeSignature.timeSignature[0],
+        denominator: timeSignature.timeSignature[1],
+      })),
     },
   };
 }
