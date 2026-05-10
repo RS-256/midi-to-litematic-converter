@@ -400,8 +400,7 @@ export class App {
       .querySelectorAll<HTMLButtonElement>(".track-select-button")
       .forEach((button) => {
         button.addEventListener("click", () => {
-          this.selectedTrackIndex = Number(button.dataset.trackIndex);
-          this.renderAll();
+          this.selectTrack(Number(button.dataset.trackIndex));
         });
       });
 
@@ -589,9 +588,84 @@ export class App {
           return;
         }
 
-        this.selectedTrackIndex = Number(trackIndexValue);
-        this.renderAll();
+        this.selectTrack(Number(trackIndexValue));
       });
+  }
+
+  private selectTrack(trackIndex: number): void {
+    if (this.selectedTrackIndex === trackIndex) {
+      return;
+    }
+
+    const previousTrackIndex = this.selectedTrackIndex;
+    this.selectedTrackIndex = trackIndex;
+
+    this.updateTrackSelectionStyles(previousTrackIndex, trackIndex);
+    this.updatePianoRollSelectionStyles(previousTrackIndex, trackIndex);
+    this.renderSelectedTrackSettings();
+  }
+
+  private updateTrackSelectionStyles(
+    previousTrackIndex: number | null,
+    selectedTrackIndex: number | null,
+  ): void {
+    const affectedTrackIndexes = [previousTrackIndex, selectedTrackIndex];
+
+    for (const trackIndex of affectedTrackIndexes) {
+      if (trackIndex === null) {
+        continue;
+      }
+
+      const row = this.elements.trackList.querySelector<HTMLDivElement>(
+        `.track-row[data-track-index="${trackIndex}"]`,
+      );
+
+      row?.classList.toggle("selected", trackIndex === selectedTrackIndex);
+    }
+  }
+
+  private updatePianoRollSelectionStyles(
+    previousTrackIndex: number | null,
+    selectedTrackIndex: number | null,
+  ): void {
+    const updateNotes = (trackIndex: number): void => {
+      const isSelected = selectedTrackIndex === trackIndex;
+
+      this.elements.pianoRoll
+        .querySelectorAll<SVGElement>(
+          `.piano-note[data-track-index="${trackIndex}"]`,
+        )
+        .forEach((noteElement) => {
+          noteElement.setAttribute("opacity", isSelected ? "0.95" : "0.25");
+          noteElement.setAttribute("stroke", isSelected ? "#ffffff" : "#27272a");
+          noteElement.setAttribute("stroke-width", isSelected ? "1.5" : "0.5");
+        });
+    };
+
+    if (previousTrackIndex === null || selectedTrackIndex === null) {
+      this.elements.pianoRoll
+        .querySelectorAll<SVGElement>(".piano-note")
+        .forEach((noteElement) => {
+          const trackIndexValue = noteElement.dataset.trackIndex;
+
+          if (trackIndexValue === undefined) {
+            return;
+          }
+
+          const trackIndex = Number(trackIndexValue);
+          const isSelected = selectedTrackIndex === trackIndex;
+          const opacity =
+            selectedTrackIndex === null || isSelected ? "0.95" : "0.25";
+
+          noteElement.setAttribute("opacity", opacity);
+          noteElement.setAttribute("stroke", isSelected ? "#ffffff" : "#27272a");
+          noteElement.setAttribute("stroke-width", isSelected ? "1.5" : "0.5");
+        });
+      return;
+    }
+
+    updateNotes(previousTrackIndex);
+    updateNotes(selectedTrackIndex);
   }
 
   private renderSelectedTrackSettings(): void {
