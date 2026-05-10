@@ -524,7 +524,7 @@ export class App {
               fill="${color}"
               opacity="${opacity}"
               stroke="${stroke}"
-              stroke-width="${isSelected ? 1.5 : 0.5}"
+              stroke-width="${isSelected ? 0.75 : 0.5}"
             />
           `;
         }
@@ -548,7 +548,7 @@ export class App {
             fill="${color}"
             opacity="${opacity}"
             stroke="${stroke}"
-            stroke-width="${isSelected ? 1.5 : 0.5}"
+            stroke-width="${isSelected ? 0.75 : 0.5}"
           />
         `;
       })
@@ -638,7 +638,7 @@ export class App {
         .forEach((noteElement) => {
           noteElement.setAttribute("opacity", isSelected ? "0.95" : "0.25");
           noteElement.setAttribute("stroke", isSelected ? "#ffffff" : "#27272a");
-          noteElement.setAttribute("stroke-width", isSelected ? "1.5" : "0.5");
+          noteElement.setAttribute("stroke-width", isSelected ? "0.75" : "0.5");
         });
     };
 
@@ -659,7 +659,7 @@ export class App {
 
           noteElement.setAttribute("opacity", opacity);
           noteElement.setAttribute("stroke", isSelected ? "#ffffff" : "#27272a");
-          noteElement.setAttribute("stroke-width", isSelected ? "1.5" : "0.5");
+          noteElement.setAttribute("stroke-width", isSelected ? "0.75" : "0.5");
         });
       return;
     }
