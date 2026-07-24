@@ -1,10 +1,5 @@
 :root {
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #f4f4f5;
   background: #18181b;
 }
@@ -101,7 +96,7 @@ h2 {
 
 @keyframes loading-spin {
   to {
-    transform: rotate(360deg);
+    transform: rotate( 360deg );
   }
 }
 
@@ -119,7 +114,7 @@ h2 {
 
 .setting-select,
 .setting-input {
-  width: min(100%, 440px);
+  width: min( 100%, 440px );
   padding: 9px 10px;
   border: 1px solid #52525b;
   border-radius: 8px;
@@ -135,7 +130,7 @@ h2 {
 
 .workspace {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 320px minmax( 0, 1fr );
   gap: 20px;
   align-items: start;
 }
@@ -357,7 +352,7 @@ h2 {
   max-height: 520px;
 }
 
-@media (max-width: 920px) {
+@media ( max-width: 920px ) {
   .top-grid {
     grid-template-columns: 1fr;
   }
@@ -373,7 +368,7 @@ h2 {
 
 .top-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(260px, 1fr);
+  grid-template-columns: minmax( 260px, 1fr ) minmax( 260px, 1fr ) minmax( 260px, 1fr );
   gap: 20px;
   align-items: stretch;
   margin-top: 20px;

@@ -1,7 +1,7 @@
-import { correctNoteBlockPitch } from "./pitch";
-import type { BlockPlacement } from "../litematic/writeLitematic";
-import type { ExportSettings, PitchCorrection, TrackData, TrackSettings } from "../types";
-import { clampInteger } from "../utils/format";
+import { correctNoteBlockPitch } from "./pitch"
+import type { BlockPlacement } from "../litematic/writeLitematic"
+import type { ExportSettings, PitchCorrection, TrackData, TrackSettings } from "../types"
+import { clampInteger } from "../utils/format"
 
 export function buildTrackPlacements(
   track: TrackData,
@@ -9,27 +9,13 @@ export function buildTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
-  tickOffset = 0,
+  tickOffset = 0
 ): BlockPlacement[] {
-  if (track.isPercussion) {
-    return buildPercussionTrackPlacements(
-      track,
-      settings,
-      currentExportSettings,
-      ppq,
-      trackYOffset,
-      tickOffset,
-    );
+  if ( track.isPercussion ) {
+    return buildPercussionTrackPlacements( track, settings, currentExportSettings, ppq, trackYOffset, tickOffset )
   }
 
-  return buildNormalTrackPlacements(
-    track,
-    settings,
-    currentExportSettings,
-    ppq,
-    trackYOffset,
-    tickOffset,
-  );
+  return buildNormalTrackPlacements( track, settings, currentExportSettings, ppq, trackYOffset, tickOffset )
 }
 
 function buildNormalTrackPlacements(
@@ -38,40 +24,31 @@ function buildNormalTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
-  tickOffset: number,
+  tickOffset: number
 ): BlockPlacement[] {
-  const placements: BlockPlacement[] = [];
-  const laneEndXList: number[] = [];
-  const effectiveBlocksPerQuarterNote =
-    currentExportSettings.blocksPerQuarterNote * 2;
+  const placements: BlockPlacement[] = []
+  const laneEndXList: number[] = []
+  const effectiveBlocksPerQuarterNote = currentExportSettings.blocksPerQuarterNote * 2
 
-  for (const note of track.notes) {
-    const adjustedTicks = note.ticks - tickOffset;
-    const adjustedEndTicks = adjustedTicks + note.durationTicks;
+  for ( const note of track.notes ) {
+    const adjustedTicks = note.ticks - tickOffset
+    const adjustedEndTicks = adjustedTicks + note.durationTicks
 
-    if (adjustedEndTicks <= 0) {
-      continue;
+    if ( adjustedEndTicks <= 0 ) {
+      continue
     }
 
-    const x = Math.round(
-      (Math.max(0, adjustedTicks) / ppq) * effectiveBlocksPerQuarterNote,
-    );
+    const x = Math.round( ( Math.max( 0, adjustedTicks ) / ppq ) * effectiveBlocksPerQuarterNote )
     const noteLengthBlocks = Math.max(
       1,
-      Math.round(
-        ((adjustedEndTicks - Math.max(0, adjustedTicks)) / ppq) *
-          effectiveBlocksPerQuarterNote,
-      ),
-    );
+      Math.round( ( ( adjustedEndTicks - Math.max( 0, adjustedTicks ) ) / ppq ) * effectiveBlocksPerQuarterNote )
+    )
 
-    const z = allocateLane(laneEndXList, x, noteLengthBlocks);
-    const correctedPitch = correctNoteBlockPitch(note.midi, settings.baseMidi);
-    const instrumentBlock = getInstrumentBlockForCorrection(
-      correctedPitch.correction,
-      settings,
-    );
+    const z = allocateLane( laneEndXList, x, noteLengthBlocks )
+    const correctedPitch = correctNoteBlockPitch( note.midi, settings.baseMidi )
+    const instrumentBlock = getInstrumentBlockForCorrection( correctedPitch.correction, settings )
 
-    addNoteLayoutPlacements({
+    addNoteLayoutPlacements( {
       placements,
       x,
       y: trackYOffset,
@@ -79,11 +56,11 @@ function buildNormalTrackPlacements(
       noteLengthBlocks,
       baseBlockId: instrumentBlock,
       noteBlockPitch: correctedPitch.pitch,
-      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId,
-    });
+      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId
+    } )
   }
 
-  return placements;
+  return placements
 }
 
 function buildPercussionTrackPlacements(
@@ -92,155 +69,129 @@ function buildPercussionTrackPlacements(
   currentExportSettings: ExportSettings,
   ppq: number,
   trackYOffset: number,
-  tickOffset: number,
+  tickOffset: number
 ): BlockPlacement[] {
-  const placements: BlockPlacement[] = [];
-  const laneEndXList: number[] = [];
-  const effectiveBlocksPerQuarterNote =
-    currentExportSettings.blocksPerQuarterNote * 2;
+  const placements: BlockPlacement[] = []
+  const laneEndXList: number[] = []
+  const effectiveBlocksPerQuarterNote = currentExportSettings.blocksPerQuarterNote * 2
 
-  for (const note of track.notes) {
-    const mapping = settings.percussionMappings.find(
-      (candidate) => candidate.midi === note.midi,
-    );
+  for ( const note of track.notes ) {
+    const mapping = settings.percussionMappings.find( ( candidate ) => candidate.midi === note.midi )
 
-    if (!mapping || !mapping.enabled) {
-      continue;
+    if ( ! mapping || ! mapping.enabled ) {
+      continue
     }
 
-    const adjustedTicks = note.ticks - tickOffset;
-    const adjustedEndTicks = adjustedTicks + note.durationTicks;
+    const adjustedTicks = note.ticks - tickOffset
+    const adjustedEndTicks = adjustedTicks + note.durationTicks
 
-    if (adjustedEndTicks <= 0) {
-      continue;
+    if ( adjustedEndTicks <= 0 ) {
+      continue
     }
 
-    const x = Math.round(
-      (Math.max(0, adjustedTicks) / ppq) * effectiveBlocksPerQuarterNote,
-    );
+    const x = Math.round( ( Math.max( 0, adjustedTicks ) / ppq ) * effectiveBlocksPerQuarterNote )
     const noteLengthBlocks = Math.max(
       1,
-      Math.round(
-        ((adjustedEndTicks - Math.max(0, adjustedTicks)) / ppq) *
-          effectiveBlocksPerQuarterNote,
-      ),
-    );
+      Math.round( ( ( adjustedEndTicks - Math.max( 0, adjustedTicks ) ) / ppq ) * effectiveBlocksPerQuarterNote )
+    )
 
-    const z = allocateLane(laneEndXList, x, noteLengthBlocks);
+    const z = allocateLane( laneEndXList, x, noteLengthBlocks )
 
-    addNoteLayoutPlacements({
+    addNoteLayoutPlacements( {
       placements,
       x,
       y: trackYOffset,
       z,
       noteLengthBlocks,
       baseBlockId: mapping.blockId,
-      noteBlockPitch: clampInteger(mapping.note, 0, 24),
-      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId,
-    });
+      noteBlockPitch: clampInteger( mapping.note, 0, 24 ),
+      repeaterBaseBlockId: currentExportSettings.repeaterBaseBlockId
+    } )
   }
 
-  return placements;
+  return placements
 }
 
-function addNoteLayoutPlacements(args: {
-  placements: BlockPlacement[];
-  x: number;
-  y: number;
-  z: number;
-  noteLengthBlocks: number;
-  baseBlockId: string;
-  noteBlockPitch: number;
-  repeaterBaseBlockId: string;
-}): void {
-  const {
-    placements,
+function addNoteLayoutPlacements( args: {
+  placements: BlockPlacement[]
+  x: number
+  y: number
+  z: number
+  noteLengthBlocks: number
+  baseBlockId: string
+  noteBlockPitch: number
+  repeaterBaseBlockId: string
+} ): void {
+  const { placements, x, y, z, noteLengthBlocks, baseBlockId, noteBlockPitch, repeaterBaseBlockId } = args
+
+  placements.push( {
     x,
     y,
     z,
-    noteLengthBlocks,
-    baseBlockId,
-    noteBlockPitch,
-    repeaterBaseBlockId,
-  } = args;
+    blockId: baseBlockId
+  } )
 
-  placements.push({
-    x,
-    y,
-    z,
-    blockId: baseBlockId,
-  });
-
-  placements.push({
+  placements.push( {
     x,
     y: y + 1,
     z,
     blockId: "minecraft:note_block",
     properties: {
       instrument: "harp",
-      note: String(noteBlockPitch),
-      powered: "false",
-    },
-  });
+      note: String( noteBlockPitch ),
+      powered: "false"
+    }
+  } )
 
-  for (let offset = 1; offset < noteLengthBlocks; offset++) {
-    const isRepeaterPosition = offset % 2 === 1;
+  for ( let offset = 1; offset < noteLengthBlocks; offset++ ) {
+    const isRepeaterPosition = offset % 2 === 1
 
-    placements.push({
+    placements.push( {
       x: x + offset,
       y,
       z,
-      blockId: repeaterBaseBlockId,
-    });
+      blockId: repeaterBaseBlockId
+    } )
 
-    placements.push({
+    placements.push( {
       x: x + offset,
       y: y + 1,
       z,
-      blockId: isRepeaterPosition
-        ? "minecraft:repeater"
-        : repeaterBaseBlockId,
+      blockId: isRepeaterPosition ? "minecraft:repeater" : repeaterBaseBlockId,
       properties: isRepeaterPosition
         ? {
             delay: "1",
             facing: "west",
             locked: "false",
-            powered: "false",
+            powered: "false"
           }
-        : undefined,
-    });
+        : undefined
+    } )
   }
 }
 
-function allocateLane(
-  laneEndXList: number[],
-  startX: number,
-  length: number,
-): number {
-  const endX = startX + length - 1;
+function allocateLane( laneEndXList: number[], startX: number, length: number ): number {
+  const endX = startX + length - 1
 
-  for (let lane = 0; lane < laneEndXList.length; lane++) {
-    if (startX > laneEndXList[lane]) {
-      laneEndXList[lane] = endX;
-      return lane;
+  for ( let lane = 0; lane < laneEndXList.length; lane++ ) {
+    if ( startX > laneEndXList[ lane ] ) {
+      laneEndXList[ lane ] = endX
+      return lane
     }
   }
 
-  laneEndXList.push(endX);
-  return laneEndXList.length - 1;
+  laneEndXList.push( endX )
+  return laneEndXList.length - 1
 }
 
-function getInstrumentBlockForCorrection(
-  correction: PitchCorrection,
-  settings: TrackSettings,
-): string {
-  if (correction === "high") {
-    return settings.highOverflowBlockId;
+function getInstrumentBlockForCorrection( correction: PitchCorrection, settings: TrackSettings ): string {
+  if ( correction === "high" ) {
+    return settings.highOverflowBlockId
   }
 
-  if (correction === "low") {
-    return settings.lowOverflowBlockId;
+  if ( correction === "low" ) {
+    return settings.lowOverflowBlockId
   }
 
-  return settings.normalBlockId;
+  return settings.normalBlockId
 }
