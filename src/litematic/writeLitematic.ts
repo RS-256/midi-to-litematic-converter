@@ -1,6 +1,6 @@
 import { gzip } from "pako"
 import type { LitematicVersion } from "../types"
-import { NbtTagId, writeNamedRootCompound, type NbtTag } from "./nbtWriter"
+import { type NbtTag, NbtTagId, writeNamedRootCompound } from "./nbtWriter"
 
 export type BlockPlacement = {
   x: number

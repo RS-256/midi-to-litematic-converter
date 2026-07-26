@@ -53,5 +53,6 @@ After the Vite dev server starts, open the displayed URL in your browser.
 
 - TypeScript
 - Vite
+- Tailwind CSS
 - `@tonejs/midi`
 - `pako`

@@ -1,6 +1,6 @@
-import { correctNoteBlockPitch } from "./pitch"
-import { getPercussionName } from "./percussion"
 import type { TrackData, TrackSettings } from "../types"
+import { getPercussionName } from "./percussion"
+import { correctNoteBlockPitch } from "./pitch"
 
 export function formatTrackNotesPreview( track: TrackData, settings: TrackSettings, limit: number ): string {
   if ( track.notes.length === 0 ) {

@@ -6,8 +6,8 @@ import {
   DEFAULT_PERCUSSION_BLOCK,
   DEFAULT_PERCUSSION_NOTE
 } from "../constants"
-import { applyPercussionPreset } from "./percussion"
 import type { PercussionMapping, TrackData, TrackSettings } from "../types"
+import { applyPercussionPreset } from "./percussion"
 
 export function createDefaultTrackSettings( tracks: TrackData[] ): Map< number, TrackSettings > {
   const map = new Map< number, TrackSettings >()

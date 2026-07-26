@@ -1,7 +1,7 @@
-import { correctNoteBlockPitch } from "./pitch"
 import type { BlockPlacement } from "../litematic/writeLitematic"
 import type { ExportSettings, PitchCorrection, TrackData, TrackSettings } from "../types"
 import { clampInteger } from "../utils/format"
+import { correctNoteBlockPitch } from "./pitch"
 
 export function buildTrackPlacements(
   track: TrackData,

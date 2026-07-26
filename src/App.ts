@@ -1,10 +1,11 @@
 import { DEFAULT_EXPORT_SETTINGS, MINECRAFT_DATA_VERSION_BY_LITEMATIC_VERSION } from "./constants"
-import { buildTrackPlacements } from "./domain/placements"
 import { applyPercussionPreset, getPercussionMapping, parsePercussionPresetId } from "./domain/percussion"
+import { buildTrackPlacements } from "./domain/placements"
 import { createDefaultPercussionMappings, createDefaultTrackSettings } from "./domain/trackSettings"
 import { writeLitematic } from "./litematic/writeLitematic"
 import { parseMidiFile } from "./midi/parseMidi"
 import type { ExportSettings, MidiMeta, MidiTimeSignature, TrackData, TrackSettings } from "./types"
+import { bindThemeToggle } from "./ui/layout"
 import {
   getTrackColor,
   renderAppShell,
@@ -31,6 +32,7 @@ type AppElements = {
   selectedTrackSettings: HTMLDivElement
   placementPreview: HTMLPreElement
   downloadLitematicButton: HTMLButtonElement
+  themeToggle: HTMLButtonElement
 }
 
 export class App {
@@ -68,11 +70,14 @@ export class App {
       pianoRoll: getElement< HTMLDivElement >( "#piano-roll", this.root ),
       selectedTrackSettings: getElement< HTMLDivElement >( "#selected-track-settings", this.root ),
       placementPreview: getElement< HTMLPreElement >( "#placement-preview", this.root ),
-      downloadLitematicButton: getElement< HTMLButtonElement >( "#download-litematic-button", this.root )
+      downloadLitematicButton: getElement< HTMLButtonElement >( "#download-litematic-button", this.root ),
+      themeToggle: getElement< HTMLButtonElement >( "#theme-toggle", this.root )
     }
   }
 
   private bindGlobalEvents(): void {
+    bindThemeToggle( this.elements.themeToggle )
+
     this.elements.fileInput.addEventListener( "change", () => {
       void this.loadSelectedMidi()
     } )
@@ -227,14 +232,12 @@ export class App {
     }
 
     this.elements.fileInfo.innerHTML = `
-      <div class="loading-status" role="status" aria-live="polite">
-        <span class="loading-spinner" aria-hidden="true"></span>
-        <span>
-          <strong>Loading MIDI file...</strong><br />
-          Name: ${ escapeHtml( file.name ) }<br />
-          Size: ${ formatBytes( file.size ) }<br />
-          Type: ${ escapeHtml( file.type || "unknown" ) }
-        </span>
+      <div class="flex items-start gap-3" role="status" aria-live="polite">
+        <span class="loading-spinner mt-1" aria-hidden="true"></span>
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-ink">Loading MIDI file...</div>
+          ${ this.renderFileRows( file ) }
+        </div>
       </div>
     `
     this.elements.midiSummary.innerHTML = this.renderLoadingMessage()
@@ -255,7 +258,7 @@ export class App {
 
   private renderLoadingMessage(): string {
     return `
-      <div class="loading-status" role="status" aria-live="polite">
+      <div class="flex items-center gap-3" role="status" aria-live="polite">
         <span class="loading-spinner" aria-hidden="true"></span>
         <span>Loading MIDI file...</span>
       </div>
@@ -273,14 +276,30 @@ export class App {
 
   private renderSelectedFileInfo( file: File, status?: string ): void {
     const statusMarkup = status
-      ? `<strong>${ escapeHtml( status ) }</strong><br />`
-      : `<strong>Selected file:</strong><br />`
+      ? `<div class="font-bold text-warn-ink">${ escapeHtml( status ) }</div>`
+      : `<div class="font-bold text-ink">Selected file</div>`
 
     this.elements.fileInfo.innerHTML = `
       ${ statusMarkup }
-      Name: ${ escapeHtml( file.name ) }<br />
-      Size: ${ formatBytes( file.size ) }<br />
-      Type: ${ escapeHtml( file.type || "unknown" ) }
+      ${ this.renderFileRows( file ) }
+    `
+  }
+
+  private renderFileRows( file: File ): string {
+    return [
+      this.renderReadoutRow( "Name", escapeHtml( file.name ) ),
+      this.renderReadoutRow( "Size", formatBytes( file.size ) ),
+      this.renderReadoutRow( "Type", escapeHtml( file.type || "unknown" ) )
+    ].join( "" )
+  }
+
+  /** Label on the left in muted text, value on the right in ink. */
+  private renderReadoutRow( label: string, value: string ): string {
+    return `
+      <div class="flex items-baseline justify-between gap-4">
+        <span class="flex-none">${ label }</span>
+        <span class="min-w-0 truncate text-right text-ink">${ value }</span>
+      </div>
     `
   }
 
@@ -306,22 +325,29 @@ export class App {
     const timeSignatures = this.getTimeSignatures()
     const firstTimeSignature = timeSignatures[ 0 ]
 
-    this.elements.midiSummary.innerHTML = `
-      <strong>Tracks:</strong> ${ this.loadedTracks.length }<br />
-      <strong>Export tracks:</strong> ${ exportTracks.length }<br />
-      <strong>PPQ:</strong> ${ this.currentPpq }<br />
-      <strong>Tempos:</strong> ${ this.currentMidiMeta.temposCount ?? "loaded" }<br />
-      <strong>First tempo:</strong> ${
+    this.elements.midiSummary.innerHTML = [
+      this.renderReadoutRow( "Tracks", String( this.loadedTracks.length ) ),
+      this.renderReadoutRow( "Export tracks", String( exportTracks.length ) ),
+      this.renderReadoutRow( "PPQ", String( this.currentPpq ) ),
+      this.renderReadoutRow( "Tempos", String( this.currentMidiMeta.temposCount ?? "loaded" ) ),
+      this.renderReadoutRow(
+        "First tempo",
         this.currentMidiMeta.firstTempoBpm
           ? `${ this.currentMidiMeta.firstTempoBpm.toFixed( 2 ) } BPM`
           : "unknown / unchanged"
-      }<br />
-      <strong>Time signatures:</strong> ${
-        this.currentMidiMeta.timeSignatures?.length ? this.currentMidiMeta.timeSignatures.length : "default 4/4"
-      }<br />
-      <strong>First time signature:</strong> ${ firstTimeSignature.numerator }/${ firstTimeSignature.denominator }<br />
-      <strong>Total notes:</strong> ${ totalNotes }<br />
-    `
+      ),
+      this.renderReadoutRow(
+        "Time signatures",
+        this.currentMidiMeta.timeSignatures?.length
+          ? String( this.currentMidiMeta.timeSignatures.length )
+          : "default 4/4"
+      ),
+      this.renderReadoutRow(
+        "First time signature",
+        `${ firstTimeSignature.numerator }/${ firstTimeSignature.denominator }`
+      ),
+      this.renderReadoutRow( "Total notes", String( totalNotes ) )
+    ].join( "" )
   }
 
   private renderTrackList(): void {
@@ -420,9 +446,7 @@ export class App {
         const x =
           leftPad + ( visibleStartTicks / this.currentPpq ) * this.exportSettings.blocksPerQuarterNote * pxPerBlock
         const y = topPad + ( maxMidi - note.midi ) * rowHeight
-        const isSelected = this.selectedTrackIndex === track.trackIndex
-        const opacity = this.selectedTrackIndex === null || isSelected ? "0.95" : "0.25"
-        const stroke = isSelected ? "#ffffff" : "#27272a"
+        const noteClass = `piano-note ${ this.getNoteStateClass( track.trackIndex ) }`
         const color = getTrackColor( track.trackIndex )
         const noteHeight = Math.max( 4, rowHeight - 2 )
 
@@ -431,15 +455,12 @@ export class App {
 
           return `
             <circle
-              class="piano-note"
+              class="${ noteClass }"
               data-track-index="${ track.trackIndex }"
               cx="${ ( x + radius ).toFixed( 2 ) }"
               cy="${ ( y + radius ).toFixed( 2 ) }"
               r="${ radius.toFixed( 2 ) }"
-              fill="${ color }"
-              opacity="${ opacity }"
-              stroke="${ stroke }"
-              stroke-width="${ isSelected ? 0.75 : 0.5 }"
+              style="fill: ${ color }"
             />
           `
         }
@@ -451,17 +472,14 @@ export class App {
 
         return `
           <rect
-            class="piano-note"
+            class="${ noteClass }"
             data-track-index="${ track.trackIndex }"
             x="${ x.toFixed( 2 ) }"
             y="${ y.toFixed( 2 ) }"
             width="${ noteWidth.toFixed( 2 ) }"
             height="${ noteHeight }"
             rx="2"
-            fill="${ color }"
-            opacity="${ opacity }"
-            stroke="${ stroke }"
-            stroke-width="${ isSelected ? 0.75 : 0.5 }"
+            style="fill: ${ color }"
           />
         `
       } )
@@ -538,12 +556,13 @@ export class App {
       this.elements.pianoRoll
         .querySelectorAll< SVGElement >( `.piano-note[data-track-index="${ trackIndex }"]` )
         .forEach( ( noteElement ) => {
-          noteElement.setAttribute( "opacity", isSelected ? "0.95" : "0.25" )
-          noteElement.setAttribute( "stroke", isSelected ? "#ffffff" : "#27272a" )
-          noteElement.setAttribute( "stroke-width", isSelected ? "0.75" : "0.5" )
+          noteElement.classList.toggle( "is-selected", isSelected )
+          noteElement.classList.toggle( "is-dimmed", selectedTrackIndex !== null && ! isSelected )
         } )
     }
 
+    // Going to or coming from "nothing selected" changes every note, otherwise
+    // only the two tracks that swapped state need touching.
     if ( previousTrackIndex === null || selectedTrackIndex === null ) {
       this.elements.pianoRoll.querySelectorAll< SVGElement >( ".piano-note" ).forEach( ( noteElement ) => {
         const trackIndexValue = noteElement.dataset.trackIndex
@@ -552,19 +571,24 @@ export class App {
           return
         }
 
-        const trackIndex = Number( trackIndexValue )
-        const isSelected = selectedTrackIndex === trackIndex
-        const opacity = selectedTrackIndex === null || isSelected ? "0.95" : "0.25"
+        const isSelected = selectedTrackIndex === Number( trackIndexValue )
 
-        noteElement.setAttribute( "opacity", opacity )
-        noteElement.setAttribute( "stroke", isSelected ? "#ffffff" : "#27272a" )
-        noteElement.setAttribute( "stroke-width", isSelected ? "0.75" : "0.5" )
+        noteElement.classList.toggle( "is-selected", isSelected )
+        noteElement.classList.toggle( "is-dimmed", selectedTrackIndex !== null && ! isSelected )
       } )
       return
     }
 
     updateNotes( previousTrackIndex )
     updateNotes( selectedTrackIndex )
+  }
+
+  private getNoteStateClass( trackIndex: number ): string {
+    if ( this.selectedTrackIndex === null ) {
+      return ""
+    }
+
+    return this.selectedTrackIndex === trackIndex ? "is-selected" : "is-dimmed"
   }
 
   private renderSelectedTrackSettings(): void {

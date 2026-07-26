@@ -18,20 +18,12 @@ export const DEFAULT_NORMAL_BLOCK = "minecraft:air"
 export const DEFAULT_HIGH_OVERFLOW_BLOCK = "minecraft:diamond_block"
 export const DEFAULT_LOW_OVERFLOW_BLOCK = "minecraft:diamond_ore"
 
-export const TRACK_COLORS = [
-  "#7dd3fc",
-  "#86efac",
-  "#fde047",
-  "#f0abfc",
-  "#93c5fd",
-  "#fdba74",
-  "#c4b5fd",
-  "#fca5a5",
-  "#67e8f9",
-  "#bef264",
-  "#f9a8d4",
-  "#a7f3d0"
-]
+/**
+ * Number of track identity colors. The values themselves are the --track-N
+ * custom properties in src/styles/global.css, because each one needs a light
+ * and a dark variant.
+ */
+export const TRACK_COLOR_COUNT = 12
 
 export const DEFAULT_PERCUSSION_BLOCK = "minecraft:stone"
 export const DEFAULT_PERCUSSION_NOTE = 0

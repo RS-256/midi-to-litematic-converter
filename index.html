@@ -2,12 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>midi-to-litematic-converter</title>
+    <title>MIDI to Litematic | rs256</title>
+    <meta
+      name="description"
+      content="Convert MIDI files into Minecraft note block layouts and export them as .litematic schematics. Runs entirely in the browser."
+    />
+    <meta property="og:title" content="MIDI to Litematic | rs256" />
+    <meta
+      property="og:description"
+      content="Convert MIDI files into Minecraft note block layouts and export them as .litematic schematics."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/svg+xml" href="/midi-to-litematic-converter/favicon.svg" />
+    <script>
+      // Prevent FOUC by resolving the theme before rendering.
+      // Same storage key as rs256.net, so the setting carries over between the sites.
+      (() => {
+        const saved = localStorage.getItem("theme")
+        const dark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        document.documentElement.classList.toggle("dark", dark)
+      })()
+    </script>
   </head>
-  <body>
-    <div id="app"></div>
+  <body class="flex min-h-svh flex-col">
+    <div id="app" class="contents"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
